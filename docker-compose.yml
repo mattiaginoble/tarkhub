@@ -1,0 +1,21 @@
+name: tarkhub
+services:
+  tarkhub:
+    container_name: tarkhub
+    image: ghcr.io/mattiaginoble/tarkhub:latest
+    ports:
+      - 6969:6969
+    environment:
+      - FORGE_API_KEY=${FORGE_API_KEY}
+      - GITHUB_TOKEN=${GITHUB_TOKEN}
+      - SPT_VERSION=${SPT_VERSION}
+      - FIKA_VERSION=${FIKA_VERSION}
+    volumes:
+      - server:/app/spt-server
+      - user:/app/user
+    restart: unless-stopped
+
+volumes:
+  server: null
+  user: null
+networks: {}

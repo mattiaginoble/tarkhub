@@ -1,0 +1,431 @@
+/* ===== CARD COMPONENTS ===== */
+/* Base card styles */
+.modlist-controls-card {
+  background-color: #18181b;
+  border: 1px solid #27272a;
+  border-radius: 0.75rem;
+  padding: 1rem 1rem;
+  margin-bottom: 0.5rem;
+  margin-top: 0.5rem;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.mod-card {
+  background-color: #18181b;
+  border: 1px solid #27272a;
+  border-radius: 0.75rem;
+  padding: 1.5rem;
+  margin-top: 0.5rem;
+  transition: all 0.2s;
+}
+
+.mod-card:hover {
+  border-color: #3f3f46;
+}
+
+.server-status-compact {
+  background-color: #18181b;
+  border: 1px solid #27272a;
+  border-radius: 0.75rem;
+  padding: 1.5rem;
+  margin: 0.5rem 0 0.5rem 0;
+}
+
+.empty-state {
+  background-color: #18181b;
+  border: 1px solid #27272a;
+  border-radius: 0.75rem;
+  padding: 3rem;
+  text-align: center;
+}
+
+/* ===== CARD LAYOUTS ===== */
+/* Mod list controls layout */
+.modlist-controls-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  width: 100%;
+}
+
+.control-group {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.control-group-main {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.control-group-buttons {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  flex-wrap: nowrap;
+  flex-shrink: 0;
+}
+
+.control-label {
+  color: #a1a1aa;
+  font-size: 0.875rem;
+  font-weight: 500;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* Mod card layout */
+.mod-card-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.mod-main-info {
+  flex: 1;
+}
+
+.mod-title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.mod-version-info {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  color: #a1a1aa;
+  font-size: 1em;
+}
+
+.mod-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.mod-teaser {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.875rem;
+  color: #a1a1aa;
+  margin: 2rem 0 0 0;
+}
+
+.mod-status {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin: 0.5rem 0 0.5rem 0;
+}
+
+.mod-actions {
+  display: flex;
+  gap: 0.5rem;
+  min-width: auto;
+}
+
+.mod-actions .btn {
+  min-width: 120px;
+  justify-content: center;
+  white-space: nowrap;
+}
+
+/* Server status layout */
+.server-status-header-compact {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+
+.server-stats-compact {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1.5rem;
+}
+
+.stat-item-compact {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+/* Section headers */
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 1.5rem;
+  gap: 0;
+}
+
+.section-header h2 {
+  color: #fafafa;
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin: 0;
+  flex-shrink: 0;
+}
+
+/* ===== CARD ELEMENTS ===== */
+/* Mod image/icon */
+.mod-image {
+  flex-shrink: 0;
+}
+
+.mod-icon {
+  width: 60px;
+  height: 60px;
+  background: linear-gradient(135deg, #3f3f46 0%, #52525b 100%);
+  border-radius: 0.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.mod-thumbnail {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 0.5rem;
+}
+
+/* Mod text elements */
+.mod-name {
+  margin: 0;
+  flex: 1;
+}
+
+.mod-link {
+  color: #fafafa;
+  font-size: 1.25rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.mod-link:hover {
+  color: #10b981;
+  text-decoration: underline;
+}
+
+/* Status tags and badges */
+.installed-tag {
+  color: #10b981;
+  font-weight: 600;
+  background-color: rgba(16, 185, 129, 0.1);
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.25rem;
+  font-size: 0.8rem;
+}
+
+.update-tag {
+  background: #f59e0b;
+  color: white;
+  font-weight: 600;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.25rem;
+  font-size: 0.8rem;
+}
+
+.mod-size {
+  font-weight: 600;
+  color: #fafafa;
+  font-size: 0.875rem;
+}
+
+/* Server status elements */
+.server-title-compact h3 {
+  color: #fafafa;
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.stat-label-compact {
+  color: #a1a1aa;
+  font-size: 0.875rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.stat-value-compact {
+  color: #fafafa;
+  font-size: 1.125rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.status-online {
+  color: #10b981;
+}
+
+.version-info {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.version-alert-icon {
+  color: #f59e0b;
+}
+
+.update-badge-header {
+  background: #f59e0b;
+  color: white;
+  border-radius: 12px;
+  padding: 8px 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  margin-left: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.update-badge-header.pulsing {
+  animation: pulse 2s infinite;
+}
+
+.empty-state p {
+  color: #a1a1aa;
+  margin: 0;
+  font-size: 0.875rem;
+}
+
+/* ===== RESPONSIVE DESIGN ===== */
+@media (max-width: 1024px) {
+  .modlist-controls-card {
+    padding: 1rem 0.75rem;
+  }
+
+  .modlist-controls-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 1rem;
+  }
+
+  .control-group-main {
+    width: 100%;
+  }
+
+  .control-group-buttons {
+    width: 100%;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.375rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .server-stats-compact {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+  }
+
+  .server-status-compact {
+    padding: 1rem;
+  }
+
+  .section-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 1rem;
+  }
+
+  .section-header h2 {
+    text-align: center;
+  }
+
+  .mod-card-header {
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .mod-image {
+    align-self: flex-start;
+  }
+
+  .mod-title-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 1rem;
+  }
+
+  .mod-actions {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .mod-actions .btn {
+    min-width: unset;
+    flex: 1;
+  }
+
+  .mod-version-info {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.25rem;
+  }
+
+  .mod-status {
+    gap: 0.5rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .mod-card {
+    padding: 1rem;
+  }
+
+  .mod-name {
+    font-size: 1.125rem;
+  }
+
+  .section-header h2 {
+    font-size: 1.25rem;
+  }
+
+  .mod-icon {
+    width: 50px;
+    height: 50px;
+  }
+
+  .mod-actions {
+    flex-direction: column;
+  }
+
+  .mod-actions .btn {
+    width: 100%;
+  }
+
+  .server-stats-compact {
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+  }
+
+  .server-title-compact h3 {
+    font-size: 1.125rem;
+  }
+
+  .stat-value-compact {
+    font-size: 1rem;
+  }
+}

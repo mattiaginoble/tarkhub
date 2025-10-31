@@ -1,0 +1,40 @@
+#----------------------------------------------------
+# 1. GENERAL EXCLUSIONS (Git, IDE)
+#----------------------------------------------------
+.git
+.gitignore
+.gitattributes
+.vscode
+.idea
+*.log
+*.tmp
+*.bak
+TODO.txt
+
+#----------------------------------------------------
+# 2. EXCLUSIONS FOR C# / .NET (Backend)
+#----------------------------------------------------
+# Exclude standard build and cache output folders
+**/backend/bin
+**/backend/obj
+
+# Exclude any user configuration files (if present)
+*.user
+*.suo
+
+#----------------------------------------------------
+# 3. EXCLUSIONS BY NODE/SCREW (Frontend)
+#----------------------------------------------------
+# Exclude the Node dependencies folder
+**/frontend/node_modules
+
+# Exclude the Vite/Frontend build output folder
+**/frontend/dist
+
+#----------------------------------------------------
+# 4. OTHER CONFIGURATION FILES NOT REQUIRED
+#----------------------------------------------------
+# Make sure you don't copy all .env files, 
+# if they contain secrets that shouldn't end up in the image.
+# (Vite uses the .env file in the root, so if it contains sensitive data, ignore it)
+.env

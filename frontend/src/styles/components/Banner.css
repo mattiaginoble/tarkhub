@@ -1,0 +1,63 @@
+/* ===== BANNER COMPONENTS ===== */
+/* Base banner styles */
+.update-banner {
+  border-radius: 0.75rem;
+  padding: 1rem 1.5rem;
+  margin-bottom: 1rem;
+  width: 100%;
+  align-items: center;
+  min-height: 80px;
+}
+
+/* Banner variants */
+.spt-banner {
+  background: linear-gradient(135deg, #5a2a0a 0%, #451a03 100%);
+}
+
+.fika-banner {
+  background: linear-gradient(135deg, #6d2ca7 0%, #581c87 100%);
+}
+
+/* Banner layout */
+.banner-content {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  width: 100%;
+}
+
+.banner-text {
+  flex: 1;
+}
+
+.banner-text h3 {
+  color: #fafafa;
+  font-size: 1.125rem;
+  font-weight: 600;
+}
+
+.banner-icon {
+  flex-shrink: 0;
+}
+
+/* ===== RESPONSIVE DESIGN ===== */
+@media (max-width: 768px) {
+  .update-banner {
+    padding: 1rem;
+  }
+
+  .banner-content {
+    flex-direction: column;
+    align-items: stretch;
+    text-align: center;
+    gap: 0.75rem;
+  }
+
+  .banner-text h3 {
+    font-size: 1rem;
+  }
+
+  .banner-text p {
+    font-size: 0.8rem;
+  }
+}

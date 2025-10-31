@@ -1,0 +1,82 @@
+# =====================
+# .NET / C# build files
+# =====================
+
+# Build output folders
+bin/
+obj/
+out/
+artifacts/
+publish/
+[Ll]og/
+
+# User-specific files
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.rsuser
+*.userprefs
+
+# IDE and editor folders
+.vs/
+.vscode/
+.idea/
+
+# NuGet packages
+*.nupkg
+*.snupkg
+packages/
+
+# Build artifacts
+*.dll
+*.exe
+*.pdb
+*.cache
+*.log
+*.tmp
+*.obj
+
+# Generated files (if any)
+Generated/
+Generated_Code/
+
+# =====================
+# C# API files
+# =====================
+
+# Backend
+/backend/bin/
+/backend/obj/
+/backend/out/
+
+# =====================
+# VITE / NODE.JS files
+# =====================
+
+# Frontend dependencies
+/frontend/node_modules
+
+# Frontend build output
+/frontend/dist
+/frontend/out
+/frontend/.env
+
+# =====================
+# Environment variables
+# =====================
+.env
+
+# =====================
+# Docker-related files
+# =====================
+*.pid
+docker-compose.override.yml
+.docker/
+
+# =====================
+# OS-specific files
+# =====================
+.DS_Store
+Thumbs.db
+desk
