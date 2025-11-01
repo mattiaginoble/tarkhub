@@ -22,6 +22,37 @@ fi
 spt_dir=/app/spt-server/SPT
 spt_data_dir=$spt_dir/SPT_Data
 fika_data_dir=$spt_dir/user/mods/fika-server
+versions_dir=/app/user/versions
+
+# ===========================
+# EXTRACT MAIN VERSION NUMBERS
+# ===========================
+
+# Extract only the main version (X.X.X) from full version string
+extract_main_version() {
+    local version="$1"
+    # Match X.X.X pattern (e.g., extract 4.0.3 from 4.0.3-40087-96c7fef)
+    if [[ $version =~ ^([0-9]+\.[0-9]+\.[0-9]+) ]]; then
+        echo "${BASH_REMATCH[1]}"
+    else
+        echo "$version" # Fallback to original if pattern not found
+    fi
+}
+
+SPT_MAIN_VERSION=$(extract_main_version "$SPT_VERSION")
+FIKA_MAIN_VERSION=$(extract_main_version "$FIKA_VERSION")
+
+echo "Extracted versions: SPT=$SPT_MAIN_VERSION (from $SPT_VERSION), FIKA=$FIKA_MAIN_VERSION (from $FIKA_VERSION)"
+
+# ========================
+# CREATE VERSION FILES
+# ========================
+
+echo "Creating version files..."
+mkdir -p $versions_dir
+echo "$SPT_MAIN_VERSION" > $versions_dir/spt_version.txt
+echo "$FIKA_MAIN_VERSION" > $versions_dir/fika_version.txt
+echo "Version files created: SPT=$SPT_MAIN_VERSION, FIKA=$FIKA_MAIN_VERSION"
 
 # ========================
 # SPT SERVER INSTALLATION
