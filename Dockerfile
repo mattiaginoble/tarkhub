@@ -48,8 +48,25 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     bash \
     p7zip-full \
     jq \
+    openssl \
     && rm -rf /var/lib/apt/lists/* \
     && mkdir -p /app/wwwroot/mod /app/spt-server /app/user
+
+# Generate SSL certificates during build
+RUN mkdir -p /etc/nginx/ssl && \
+    rm -f /etc/nginx/ssl/nginx.* && \
+    openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+        -keyout /etc/nginx/ssl/nginx.key \
+        -out /etc/nginx/ssl/nginx.crt \
+        -subj "/C=US/ST=State/L=City/O=Organization/CN=localhost" && \
+    # Set permissions explicitly
+    chown -R root:root /etc/nginx/ssl/ && \
+    chmod 755 /etc/nginx/ssl/ && \
+    chmod 644 /etc/nginx/ssl/nginx.crt && \
+    chmod 600 /etc/nginx/ssl/nginx.key && \
+    # Verify
+    echo "=== FINAL PERMISSIONS ===" && \
+    ls -la /etc/nginx/ssl/
 
 # Copy built applications
 COPY --from=backend-build /app/out ./

@@ -66,7 +66,7 @@ Whether you’re tweaking your loadout or testing new mod builds, TarkHub keeps 
    - Nginx serves frontend and proxies to backend
 
 3. **Access the web UI:**
-   - Open your browser at [http://localhost:6969](http://localhost:6969)
+   - Open your browser at [https://localhost:6969/mod](https://localhost:6969/mod)
 
 ---
 
@@ -107,7 +107,8 @@ You can also specify a version/tag published on [ghcr.io](https://github.com/use
 
 ## Usage
 
-- Access the web interface at [http://localhost:6969](http://localhost:6969)
+- Access the web interface at [https://localhost:6969/mod](https://localhost:6969/mod)
+- Access the SPT server at [https://127.0.0.1:6969](https://127.0.0.1:6969)
 - Create your modlist, add mods, export or import lists
 - Manage SPT and Fika versions, update mods, and more!
 
