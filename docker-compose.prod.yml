@@ -1,10 +1,8 @@
-name: tarkhub-dev
+name: tarkhub
 services:
   tarkhub:
-    container_name: tarkhub-dev
-    build:
-      context: .
-      dockerfile: Dockerfile
+    container_name: tarkhub
+    image: ghcr.io/mattiaginoble/tarkhub:latest
     ports:
       - 6969:6969
     env_file:
