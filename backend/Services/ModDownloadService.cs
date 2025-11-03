@@ -1,6 +1,8 @@
 using ForgeModApi.Models;
 using System.Net.Http.Headers;
 using System.IO.Compression;
+using SharpCompress.Archives;
+using SharpCompress.Common;
 
 namespace ForgeModApi.Services;
 
@@ -53,7 +55,8 @@ public partial class ModService
             }
 
             // Download the file
-            var tempZipPath = Path.Combine(tempDir, $"{mod.Id}.zip");
+            var fileName = $"{mod.Id}{Path.GetExtension(downloadUrl) ?? ".zip"}";
+            var tempFilePath = Path.Combine(tempDir, fileName);
             
             using (var httpClient = new HttpClient())
             {
@@ -72,17 +75,38 @@ public partial class ModService
                 }
 
                 await using var stream = await response.Content.ReadAsStreamAsync();
-                await using var fileStream = new FileStream(tempZipPath, FileMode.Create);
+                await using var fileStream = new FileStream(tempFilePath, FileMode.Create);
                 await stream.CopyToAsync(fileStream);
             }
 
-            _logger.LogInformation("Download completed: {FileSize} bytes", new FileInfo(tempZipPath).Length);
+            _logger.LogInformation("Download completed: {FileSize} bytes", new FileInfo(tempFilePath).Length);
 
-            // Extract the file
+            // Extract the file based on extension
             try
             {
                 var extractDir = Path.Combine(tempDir, "extract");
-                ZipFile.ExtractToDirectory(tempZipPath, extractDir, true);
+                Directory.CreateDirectory(extractDir);
+
+                var fileExtension = Path.GetExtension(tempFilePath).ToLower();
+                
+                switch (fileExtension)
+                {
+                    case ".zip":
+                        ZipFile.ExtractToDirectory(tempFilePath, extractDir, true);
+                        _logger.LogInformation("ZIP file extracted successfully");
+                        break;
+                    
+                    case ".7z":
+                        await Extract7zFileAsync(tempFilePath, extractDir);
+                        _logger.LogInformation("7Z file extracted successfully");
+                        break;
+                    
+                    default:
+                        // Prova ad estrarre come archivio generico per altri formati
+                        await ExtractArchiveFileAsync(tempFilePath, extractDir);
+                        _logger.LogInformation("Archive file extracted using generic method");
+                        break;
+                }
 
                 // Create user/mods directory if it doesn't exist
                 var userModsDir = Path.Combine(_sptServerDir, "SPT", "user", "mods");
@@ -122,6 +146,64 @@ public partial class ModService
             _logger.LogError(ex, "Error downloading mod");
             return new ModDownloadResult { Success = false, Message = $"Error: {ex.Message}" };
         }
+    }
+
+    /// <summary>
+    /// Extracts a 7z file using SharpCompress
+    /// </summary>
+    private async Task Extract7zFileAsync(string archivePath, string extractDir)
+    {
+        await Task.Run(() =>
+        {
+            using (var archive = ArchiveFactory.Open(archivePath))
+            {
+                foreach (var entry in archive.Entries)
+                {
+                    if (!entry.IsDirectory)
+                    {
+                        string entryPath = Path.Combine(extractDir, entry.Key);
+                        
+                        // Create directory if it doesn't exist
+                        string entryDir = Path.GetDirectoryName(entryPath);
+                        if (!string.IsNullOrEmpty(entryDir) && !Directory.Exists(entryDir))
+                        {
+                            Directory.CreateDirectory(entryDir);
+                        }
+
+                        entry.WriteToFile(entryPath);
+                    }
+                }
+            }
+        });
+    }
+
+    /// <summary>
+    /// Extracts any archive format using SharpCompress
+    /// </summary>
+    private async Task ExtractArchiveFileAsync(string archivePath, string extractDir)
+    {
+        await Task.Run(() =>
+        {
+            using (var archive = ArchiveFactory.Open(archivePath))
+            {
+                foreach (var entry in archive.Entries)
+                {
+                    if (!entry.IsDirectory)
+                    {
+                        string entryPath = Path.Combine(extractDir, entry.Key);
+                        
+                        // Create directory if it doesn't exist
+                        string entryDir = Path.GetDirectoryName(entryPath);
+                        if (!string.IsNullOrEmpty(entryDir) && !Directory.Exists(entryDir))
+                        {
+                            Directory.CreateDirectory(entryDir);
+                        }
+
+                        entry.WriteToFile(entryPath);
+                    }
+                }
+            }
+        });
     }
 
     /// <summary>
