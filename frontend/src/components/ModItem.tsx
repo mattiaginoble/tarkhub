@@ -6,26 +6,28 @@ import {
   RefreshCwIcon,
   CheckCircleIcon,
 } from "lucide-react";
+import { getVersionMajor } from "../utils/versionUtils";
+
+interface Mod {
+  id: number;
+  name: string;
+  version: string;
+  latestVersion?: string;
+  sptVersionConstraint: string;
+  thumbnail?: string;
+  detailUrl: string;
+  teaser?: string;
+  contentLength?: string;
+  updateAvailable?: boolean;
+}
 
 interface ModItemProps {
-  mod: {
-    id: number;
-    name: string;
-    version: string;
-    latestVersion?: string;
-    sptVersionConstraint: string;
-    thumbnail?: string;
-    detailUrl: string;
-    teaser?: string;
-    contentLength?: string;
-    updateAvailable?: boolean;
-  };
+  mod: Mod;
   isInstalled: boolean;
   downloadMod: (id: number, name: string) => void;
   handleUpdateAndDownload: (id: number, name: string) => void;
   removeMod: (id: number, name: string) => void;
   selectedSptVersion: string;
-  getVersionMajor: (version: string) => string;
   hasUpdate: boolean;
 }
 
@@ -36,7 +38,6 @@ const ModItem: React.FC<ModItemProps> = ({
   handleUpdateAndDownload,
   removeMod,
   selectedSptVersion,
-  getVersionMajor,
   hasUpdate,
 }) => {
   const modMajor = getVersionMajor(mod.sptVersionConstraint);
@@ -135,13 +136,7 @@ const ModItem: React.FC<ModItemProps> = ({
             <span>
               Version: {mod.version}
               {showUpdateIndicator && (
-                <span
-                  style={{
-                    color: "#10b981",
-                    fontWeight: "bold",
-                    marginLeft: "8px",
-                  }}
-                >
+                <span className="update-available-text">
                   → {latestVersion} available!
                 </span>
               )}
@@ -150,14 +145,13 @@ const ModItem: React.FC<ModItemProps> = ({
               SPT: {mod.sptVersionConstraint || "~4.0.0"}
             </span>
           </div>
+
           <div className="mod-meta">
             <div className="mod-teaser">
               <span>{mod.teaser || "No description"}</span>
             </div>
             <div className="mod-status">
-              {isInstalled && (
-                <span className="installed-tag">Already Installed</span>
-              )}
+              {isInstalled && <span className="installed-tag">Installed</span>}
               {showUpdateIndicator && isInstalled && (
                 <span className="update-tag">Update Available</span>
               )}

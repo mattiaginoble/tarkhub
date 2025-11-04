@@ -5,6 +5,7 @@ import {
   WifiOffIcon,
   AlertCircleIcon,
 } from "lucide-react";
+import { useModal } from "../components/ModalContext";
 
 interface ServerStatusProps {
   onRefresh?: () => Promise<void>;
@@ -32,6 +33,7 @@ const ServerStatus: React.FC<ServerStatusProps> = ({
   onRefresh,
   isChecking = false,
 }) => {
+  const { showModal } = useModal();
   const [serverInfo, setServerInfo] = useState<ServerStatusInfo>({
     sptVersion: "unknown",
     uptime: "0s",
@@ -47,7 +49,7 @@ const ServerStatus: React.FC<ServerStatusProps> = ({
   });
 
   const [isSpinning, setIsSpinning] = useState(false);
-  const refreshTimeoutRef = useRef<NodeJS.Timeout>();
+  const refreshTimeoutRef = useRef<number>();
 
   const fetchServerStatus = async () => {
     try {
@@ -105,7 +107,7 @@ const ServerStatus: React.FC<ServerStatusProps> = ({
       const listsResponse = await fetch("/api/mod_lists");
       if (!listsResponse.ok) return;
 
-      const listNames = await listsResponse.json();
+      const listNames: string[] = await listsResponse.json();
       let totalUpdateCount = 0;
 
       for (const listName of listNames) {
@@ -114,7 +116,9 @@ const ServerStatus: React.FC<ServerStatusProps> = ({
         );
         if (updatesResponse.ok) {
           const updatedMods = await updatesResponse.json();
-          totalUpdateCount += updatedMods.length;
+          totalUpdateCount += updatedMods.filter(
+            (mod: any) => mod.updateAvailable
+          ).length;
         }
       }
 
@@ -152,12 +156,51 @@ const ServerStatus: React.FC<ServerStatusProps> = ({
 
   const handleRefresh = async () => {
     setIsSpinning(true);
-    if (onRefresh) await onRefresh();
-    await Promise.all([fetchServerStatus(), checkAllUpdates()]);
 
-    refreshTimeoutRef.current = setTimeout(() => {
-      setIsSpinning(false);
-    }, 2000);
+    try {
+      if (onRefresh) await onRefresh();
+      await Promise.all([fetchServerStatus(), checkAllUpdates()]);
+
+      const hasUpdates =
+        updateInfo.sptUpdateAvailable ||
+        updateInfo.fikaUpdateAvailable ||
+        updateInfo.modUpdatesAvailable;
+
+      let message = "All components are up to date.";
+      let modalType: "success" | "info" = "success";
+
+      if (hasUpdates) {
+        const updates = [];
+        if (updateInfo.sptUpdateAvailable) updates.push("SPT");
+        if (updateInfo.fikaUpdateAvailable) updates.push("Fika");
+        if (updateInfo.modUpdatesAvailable)
+          updates.push(`${updateInfo.modUpdateCount} mods`);
+
+        message = `Refresh completed. Updates available for: ${updates.join(
+          ", "
+        )}`;
+        modalType = "info";
+      }
+
+      showModal({
+        type: modalType,
+        title: "Refresh Completed",
+        message,
+        duration: 4000,
+      });
+    } catch (error) {
+      console.error("Refresh error:", error);
+      showModal({
+        type: "error",
+        title: "Refresh Failed",
+        message: "An error occurred during refresh",
+        duration: 3000,
+      });
+    } finally {
+      refreshTimeoutRef.current = window.setTimeout(() => {
+        setIsSpinning(false);
+      }, 2000);
+    }
   };
 
   const showSpinning = isSpinning || isChecking;

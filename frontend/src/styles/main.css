@@ -8,6 +8,7 @@
 @import "./components/Form.css";
 @import "./components/Banner.css";
 @import "./components/Animation.css";
+@import "./components/Modal.css";
 
 /* ===== APPLICATION-SPECIFIC RESPONSIVE STYLES ===== */
 @media (max-width: 768px) {

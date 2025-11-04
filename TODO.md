@@ -11,7 +11,7 @@
 
 - [ ] **[UI/UX]** Improve responsive design for mobile devices
 - [ ] **[Cleanup]** Remove unused dependencies and components
-- [ ] **[UI/UX]** Improved message management
+- [x] **[UI/UX]** Improved message management with custom modals
 
 ## 🔮 Future Features (v1.1.0)
 

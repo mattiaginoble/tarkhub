@@ -1,5 +1,6 @@
 import React from "react";
 import { SptVersion } from "../hooks/useModManager";
+import { useModal } from "../components/ModalContext";
 
 interface SptVersionSelectorProps {
   currentList: string;
@@ -14,14 +15,28 @@ const SptVersionSelector: React.FC<SptVersionSelectorProps> = ({
   selectedSptVersion,
   handleSptVersionChange,
 }) => {
+  const { showModal } = useModal();
+
   if (!currentList) return null;
+
+  const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const newVersion = e.target.value;
+    handleSptVersionChange(e);
+
+    showModal({
+      type: "success",
+      title: "SPT Version Updated",
+      message: `SPT version changed to ${newVersion} for list "${currentList}"`,
+      duration: 3000,
+    });
+  };
 
   return (
     <div className="version-row">
-      <span className="version-label">Version installed SPT:</span>
+      <span className="version-label">SPT Version:</span>
       <select
         value={selectedSptVersion}
-        onChange={handleSptVersionChange}
+        onChange={handleChange}
         className="version-input"
       >
         {sptVersions.map((spt) => (

@@ -11,31 +11,30 @@ import {
 interface ModListControlsProps {
   currentList: string;
   modLists: string[];
-  handleListChange: (e: React.ChangeEvent<HTMLSelectElement>) => void;
-  addList: () => void;
-  renameList: () => void;
-  deleteList: () => void;
-  downloadList: () => void;
-  importList: () => void;
-  clearInstalledCache: () => void;
+  onListChange: (e: React.ChangeEvent<HTMLSelectElement>) => void;
+  onAddList: (newListName?: string) => void;
+  onRenameList: (newName?: string) => void;
+  onDeleteList: () => void;
+  onExportList: () => void;
+  onImportList: () => void;
+  onClearCache: () => void;
 }
 
 const ModListControls: React.FC<ModListControlsProps> = ({
   currentList,
   modLists,
-  handleListChange,
-  addList,
-  renameList,
-  deleteList,
-  downloadList,
-  importList,
-  clearInstalledCache,
+  onListChange,
+  onAddList,
+  onRenameList,
+  onDeleteList,
+  onExportList,
+  onImportList,
+  onClearCache,
 }) => {
   const selectRef = useRef<HTMLSelectElement>(null);
   const measureRef = useRef<HTMLSpanElement>(null);
-  const [selectWidth, setSelectWidth] = useState<number | null>(null);
+  const [selectWidth, setSelectWidth] = useState<number>(120);
 
-  // Calculate dynamic width for select based on content
   useEffect(() => {
     if (measureRef.current && selectRef.current) {
       const text = currentList || "-- Select a list --";
@@ -53,36 +52,29 @@ const ModListControls: React.FC<ModListControlsProps> = ({
     }
   }, [currentList, modLists]);
 
+  const hasCurrentList = Boolean(currentList);
+
   return (
     <div className="modlist-controls-card">
-      {/* Hidden element for text measurement */}
-      <span
-        ref={measureRef}
-        style={{
-          position: "absolute",
-          visibility: "hidden",
-          whiteSpace: "nowrap",
-          fontSize: "0.875rem",
-          fontFamily: "inherit",
-          fontWeight: "inherit",
-          letterSpacing: "inherit",
-        }}
-      />
+      <span ref={measureRef} className="text-measure" aria-hidden="true" />
 
       <div className="modlist-controls-row">
         <div className="control-group control-group-main">
-          <span className="control-label">Load List:</span>
+          <label htmlFor="mod-list-select" className="control-label">
+            Load List:
+          </label>
           <select
             ref={selectRef}
+            id="mod-list-select"
             value={currentList}
-            onChange={handleListChange}
+            onChange={onListChange}
             className="list-select-input"
-            style={selectWidth ? { width: `${selectWidth}px` } : {}}
+            style={{ width: `${selectWidth}px` }}
           >
-            <option value="" style={{ display: "none" }}>
+            <option value="" disabled>
               -- Select a list --
             </option>
-            {modLists.map((listName: string) => (
+            {modLists.map((listName) => (
               <option key={listName} value={listName}>
                 {listName}
               </option>
@@ -91,40 +83,40 @@ const ModListControls: React.FC<ModListControlsProps> = ({
         </div>
 
         <div className="control-group control-group-buttons">
-          <button onClick={addList} className="btn-secondary">
-            <PlusIcon size={18} />
+          <button onClick={() => onAddList()} className="btn-secondary">
+            <PlusIcon size={18} aria-hidden="true" />
             New List
           </button>
           <button
-            onClick={renameList}
-            disabled={!currentList}
+            onClick={() => onRenameList()}
+            disabled={!hasCurrentList}
             className="btn-secondary"
           >
-            <EditIcon size={18} />
+            <EditIcon size={18} aria-hidden="true" />
             Rename
           </button>
           <button
-            onClick={deleteList}
-            disabled={!currentList}
+            onClick={onDeleteList}
+            disabled={!hasCurrentList}
             className="btn-secondary"
           >
-            <Trash2Icon size={18} />
+            <Trash2Icon size={18} aria-hidden="true" />
             Delete
           </button>
           <button
-            onClick={downloadList}
-            disabled={!currentList}
+            onClick={onExportList}
+            disabled={!hasCurrentList}
             className="btn-secondary"
           >
-            <DownloadIcon size={18} />
+            <DownloadIcon size={18} aria-hidden="true" />
             Export
           </button>
-          <button onClick={importList} className="btn-secondary">
-            <UploadIcon size={18} />
+          <button onClick={() => onImportList()} className="btn-secondary">
+            <UploadIcon size={18} aria-hidden="true" />
             Import
           </button>
-          <button onClick={clearInstalledCache} className="btn-secondary">
-            <XCircleIcon size={18} />
+          <button onClick={onClearCache} className="btn-secondary">
+            <XCircleIcon size={18} aria-hidden="true" />
             Clear Cache
           </button>
         </div>
