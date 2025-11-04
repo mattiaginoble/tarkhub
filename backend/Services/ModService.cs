@@ -20,14 +20,20 @@ public partial class ModService : IModService
     private readonly string _sptServerDir;
     
     private readonly ConcurrentDictionary<string, (string Content, DateTime Expiry)> _apiCache;
-    private readonly TimeSpan _cacheDuration = TimeSpan.FromMinutes(15);
+    private readonly TimeSpan _cacheDuration = TimeSpan.FromMinutes(30);
     private readonly TimeSpan _githubCacheDuration = TimeSpan.FromHours(2);
+    private readonly TimeSpan _modCacheDuration = TimeSpan.FromHours(2);
+
     private readonly SemaphoreSlim _apiSemaphore = new SemaphoreSlim(2, 2);
     private DateTime _lastApiCall = DateTime.MinValue;
 
-    // GitHub API configuration
     private readonly string? _githubToken;
     private readonly bool _hasGitHubAuth;
+    #endregion
+
+    #region Cache Helper Methods
+    private string GetModCacheKey(string modId) => $"mod_{modId}";
+    private string GetSptVersionsCacheKey() => "spt_versions_all";
     #endregion
 
     #region Constructor
@@ -40,12 +46,10 @@ public partial class ModService : IModService
         _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _apiKey);
         _httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
 
-        // GitHub client setup with authentication if available
         _githubHttpClient = new HttpClient();
         _githubHttpClient.DefaultRequestHeaders.UserAgent.ParseAdd("TarkHub/1.0");
         _githubHttpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github.v3+json"));
         
-        // Try to get GitHub token from configuration
         _githubToken = configuration["GITHUB_TOKEN"];
         _hasGitHubAuth = !string.IsNullOrEmpty(_githubToken);
         
@@ -70,9 +74,6 @@ public partial class ModService : IModService
     #endregion
 
     #region Initialization
-    /// <summary>
-    /// Ensures required directories exist
-    /// </summary>
     private void EnsureDirectories()
     {
         if (!Directory.Exists(_listsDir))
@@ -82,25 +83,24 @@ public partial class ModService : IModService
         if (!Directory.Exists(_sptServerDir))
             Directory.CreateDirectory(_sptServerDir);
     }
+
+    public bool ValidateSptInstallation()
+    {
+        return ValidateSptDirectoryStructure();
+    }
     #endregion
 
     #region API Throttling and Caching
-    /// <summary>
-    /// Gets appropriate cache duration based on URL and client type
-    /// </summary>
     private TimeSpan GetCacheDuration(string url, bool useForgeClient)
     {
         if (!useForgeClient && url.Contains("github.com"))
         {
-            return _githubCacheDuration; // 2 ore per GitHub
+            return _githubCacheDuration;
         }
         
-        return _cacheDuration; // 15 minuti per Forge API
+        return _cacheDuration;
     }
 
-    /// <summary>
-    /// Throttle API calls to avoid rate limiting
-    /// </summary>
     private async Task ThrottleApiCalls()
     {
         await _apiSemaphore.WaitAsync();
@@ -119,9 +119,6 @@ public partial class ModService : IModService
         }
     }
 
-    /// <summary>
-    /// Clears expired entries from the cache
-    /// </summary>
     private void CleanExpiredCache()
     {
         try
@@ -141,9 +138,6 @@ public partial class ModService : IModService
         }
     }
 
-    /// <summary>
-    /// Fetch with cache, retry, throttling, and error handling
-    /// </summary>
     private async Task<string?> FetchWithCacheAndRetryAsync(string url, int maxRetries = 3, bool useForgeClient = true)
     {
         CleanExpiredCache();
@@ -170,20 +164,16 @@ public partial class ModService : IModService
                     
                     var duration = GetCacheDuration(url, useForgeClient);
                     _apiCache[url] = (content, DateTime.UtcNow.Add(duration));
-                    _logger.LogDebug("Cached response for: {Url}", url);
                     
                     return content;
                 }
                 else if (response.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
                 {
-                    // Handle rate limiting with exponential backoff
                     _logger.LogWarning("Rate limit hit for {Url}, attempt {Attempt}", url, attempt);
                     
-                    // Try to get retry-after header
                     if (response.Headers.RetryAfter?.Delta.HasValue == true)
                     {
                         var retryAfter = response.Headers.RetryAfter.Delta.Value;
-                        _logger.LogInformation("Retry-After header found: {RetryAfter}", retryAfter);
                         await Task.Delay(retryAfter);
                     }
                     else
@@ -203,7 +193,6 @@ public partial class ModService : IModService
                 {
                     _logger.LogWarning("Access denied for {Url}. Status: {StatusCode}", url, response.StatusCode);
                     
-                    // Log specific guidance for GitHub API
                     if (!useForgeClient && !_hasGitHubAuth)
                     {
                         _logger.LogWarning("Consider adding a GITHUB_TOKEN environment variable for higher rate limits");
@@ -231,9 +220,6 @@ public partial class ModService : IModService
     #endregion
 
     #region GitHub API Specific Methods
-    /// <summary>
-    /// Fetches releases from GitHub with better error handling and fallbacks
-    /// </summary>
     public async Task<List<GitHubRelease>?> FetchGitHubReleasesAsync(string repoUrl, string repoName)
     {
         try
@@ -263,9 +249,6 @@ public partial class ModService : IModService
         }
     }
 
-    /// <summary>
-    /// Converts a GitHub repository URL to API URL
-    /// </summary>
     private string? ConvertToGitHubApiUrl(string repoUrl)
     {
         try
@@ -293,9 +276,6 @@ public partial class ModService : IModService
     #endregion
 
     #region API Key Validation
-    /// <summary>
-    /// Check if the API key is valid
-    /// </summary>
     public async Task<bool> ValidateApiKeyAsync()
     {
         try
@@ -310,9 +290,6 @@ public partial class ModService : IModService
         }
     }
 
-    /// <summary>
-    /// Check if GitHub authentication is configured
-    /// </summary>
     public bool HasGitHubAuthentication()
     {
         return _hasGitHubAuth;
@@ -320,9 +297,6 @@ public partial class ModService : IModService
     #endregion
 
     #region File System Utilities
-    /// <summary>
-    /// Converts a string to a safe filename by replacing invalid characters
-    /// </summary>
     private string GetSafeFileName(string name)
     {
         foreach (var c in Path.GetInvalidFileNameChars())
@@ -330,59 +304,62 @@ public partial class ModService : IModService
         return name;
     }
 
-    /// <summary>
-    /// Recursively copies a directory with retry logic for locked files
-    /// </summary>
     private void CopyDirectory(string sourceDir, string destinationDir, bool recursive)
     {
+        sourceDir = Path.GetFullPath(sourceDir);
+        destinationDir = Path.GetFullPath(destinationDir);
+
+        if (!Directory.Exists(sourceDir))
+        {
+            _logger.LogWarning("Source directory does not exist: {SourceDir}", sourceDir);
+            return;
+        }
+
         Directory.CreateDirectory(destinationDir);
 
-        // Copy files with retry mechanism
         foreach (var file in Directory.GetFiles(sourceDir))
         {
-            var destFile = Path.Combine(destinationDir, Path.GetFileName(file));
+            var normalizedFile = Path.GetFullPath(file);
+            var fileName = Path.GetFileName(normalizedFile);
+            var destFile = $"{destinationDir}/{fileName}";
             
-            // Retry up to 3 times for files that might be in use
             for (int i = 0; i < 3; i++)
             {
                 try
                 {
-                    File.Copy(file, destFile, true);
+                    File.Copy(normalizedFile, destFile, true);
                     break;
                 }
                 catch (IOException) when (i < 2)
                 {
-                    _logger.LogDebug("File in use, retrying: {FilePath}", file);
                     Thread.Sleep(1000);
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Error copying file: {FilePath}", file);
+                    _logger.LogError(ex, "Error copying file: {FilePath}", normalizedFile);
                     throw;
                 }
             }
         }
 
-        // Copy subdirectories recursively
         if (recursive)
         {
             foreach (var subDir in Directory.GetDirectories(sourceDir))
             {
-                var destSubDir = Path.Combine(destinationDir, Path.GetFileName(subDir));
-                CopyDirectory(subDir, destSubDir, true);
+                var normalizedSubDir = Path.GetFullPath(subDir);
+                var dirName = Path.GetFileName(normalizedSubDir);
+                var destSubDir = $"{destinationDir}/{dirName}";
+                
+                CopyDirectory(normalizedSubDir, destSubDir, true);
             }
         }
     }
     #endregion
 
     #region Version File Management
-    // Version file paths
     private string GetSptVersionFilePath() => Path.Combine(_versionsDir, "spt_version.txt");
     private string GetFikaVersionFilePath() => Path.Combine(_versionsDir, "fika_version.txt");
 
-    /// <summary>
-    /// Saves SPT version to file
-    /// </summary>
     private void SaveSptVersion(string version)
     {
         try
@@ -394,7 +371,6 @@ public partial class ModService : IModService
                 Directory.CreateDirectory(directory);
             }
             File.WriteAllText(versionFile, version);
-            _logger.LogDebug("SPT version saved: {Version}", version);
         }
         catch (Exception ex)
         {
@@ -402,9 +378,6 @@ public partial class ModService : IModService
         }
     }
 
-    /// <summary>
-    /// Saves Fika version to file
-    /// </summary>
     private void SaveFikaVersion(string version)
     {
         try
@@ -416,7 +389,6 @@ public partial class ModService : IModService
                 Directory.CreateDirectory(directory);
             }
             File.WriteAllText(versionFile, version);
-            _logger.LogDebug("Fika version saved: {Version}", version);
         }
         catch (Exception ex)
         {
@@ -426,18 +398,12 @@ public partial class ModService : IModService
     #endregion
 
     #region SPT Version Management
-    /// <summary>
-    /// Gets the selected SPT version for a mod list
-    /// </summary>
     public string? GetSelectedSptVersion(string listName)
     {
         var list = LoadList(listName);
         return list.SelectedSptVersion;
     }
 
-    /// <summary>
-    /// Updates the SPT version for a mod list
-    /// </summary>
     public bool UpdateSelectedSptVersion(string listName, string sptVersion)
     {
         try
@@ -455,12 +421,8 @@ public partial class ModService : IModService
         }
     }
 
-    /// <summary>
-    /// Gets current SPT version from file or environment variable
-    /// </summary>
     public string GetCurrentSptVersion()
     {
-        // Try to read from version file first
         try
         {
             var versionFile = GetSptVersionFilePath();
@@ -475,19 +437,14 @@ public partial class ModService : IModService
             _logger.LogWarning(ex, "Error reading SPT version file");
         }
         
-        // Fallback to environment variable
         var envVersion = Environment.GetEnvironmentVariable("SPT_VERSION") ?? "unknown";
         return envVersion;
     }
     #endregion
 
     #region Fika Version Management
-    /// <summary>
-    /// Gets current Fika version from file or environment variable
-    /// </summary>
     public string GetCurrentFikaVersion()
     {
-        // Try to read from version file first
         try
         {
             var versionFile = GetFikaVersionFilePath();
@@ -502,7 +459,6 @@ public partial class ModService : IModService
             _logger.LogWarning(ex, "Error reading Fika version file");
         }
         
-        // Fallback to environment variable
         var envVersion = Environment.GetEnvironmentVariable("FIKA_VERSION") ?? "unknown";
         return envVersion;
     }

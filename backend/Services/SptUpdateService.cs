@@ -8,18 +8,12 @@ public partial class ModService
 {
     #region SPT Updates
 
-    /// <summary>
-    /// Checks for SPT updates by querying GitHub releases
-    /// </summary>
     public async Task<SptUpdateInfo> CheckSptUpdateAsync()
     {
         try
         {
             var currentVersion = GetCurrentSptVersion();
-            
             var releasesUrl = "https://api.github.com/repos/sp-tarkov/build/releases";
-            
-            // USA GITHUB CLIENT (useForgeClient: false)
             var releasesJson = await FetchWithCacheAndRetryAsync(releasesUrl, 3, false);
             
             if (string.IsNullOrEmpty(releasesJson))
@@ -37,7 +31,6 @@ public partial class ModService
             
             if (!releasesArray.Any())
             {
-                _logger.LogInformation("No SPT releases found");
                 return new SptUpdateInfo { 
                     CurrentVersion = currentVersion,
                     LatestVersion = currentVersion, 
@@ -69,7 +62,6 @@ public partial class ModService
             string downloadUrl;
             if (string.IsNullOrEmpty(body))
             {
-                _logger.LogInformation("Empty release body, generating URL from tag");
                 downloadUrl = GenerateDownloadUrlFromTag(tagName);
             }
             else
@@ -93,13 +85,9 @@ public partial class ModService
             if (updateAvailable)
             {
                 _logger.LogInformation(
-                    "SPT update available: {CurrentVersion} → {LatestVersion}", 
+                    "SPT update available: {CurrentVersion} -> {LatestVersion}", 
                     currentVersion, latestVersion
                 );
-            }
-            else
-            {
-                _logger.LogDebug("SPT is up to date: {CurrentVersion}", currentVersion);
             }
             
             return new SptUpdateInfo
@@ -122,16 +110,26 @@ public partial class ModService
         }
     }
 
-    /// <summary>
-    /// Downloads and installs SPT update with backup and rollback support
-    /// </summary>
     public async Task<bool> DownloadAndUpdateSptAsync(string downloadUrl)
     {
-        // Create update flag to prevent container shutdown
         await File.WriteAllTextAsync("/tmp/updating.flag", "SPT update in progress");
         _logger.LogInformation("Update flag created - SPT update starting");
-        
         _logger.LogInformation("Starting SPT update: {DownloadUrl}", downloadUrl);
+        
+        if (!HasSufficientDiskSpace(500 * 1024 * 1024))
+        {
+            _logger.LogError("Insufficient disk space for SPT update");
+            return false;
+        }
+
+        var backupDir = CreateBackup();
+        if (backupDir == null)
+        {
+            _logger.LogError("Backup creation failed, aborting update");
+            return false;
+        }
+
+        string tempFile = null;
         
         try
         {
@@ -139,7 +137,6 @@ public partial class ModService
             await StopSptServerAsync();
             await Task.Delay(5000);
             
-            // Force kill any remaining SPT processes
             var sptProcesses = System.Diagnostics.Process.GetProcessesByName("SPT.Server.Linux");
             if (sptProcesses.Length > 0)
             {
@@ -159,7 +156,7 @@ public partial class ModService
             }
 
             _logger.LogInformation("Downloading SPT update...");
-            var tempFile = Path.Combine(Path.GetTempPath(), $"spt-update-{Guid.NewGuid()}.7z");
+            tempFile = Path.Combine(Path.GetTempPath(), $"spt-update-{Guid.NewGuid()}.7z");
             
             using var httpClient = new HttpClient();
             httpClient.Timeout = TimeSpan.FromMinutes(10);
@@ -178,21 +175,9 @@ public partial class ModService
             
             _logger.LogInformation("Download completed: {FileSize} bytes", new FileInfo(tempFile).Length);
 
-            // Create backup before updating
-            var backupDir = $"{_sptServerDir}-backup-{DateTime.Now:yyyyMMdd-HHmmss}";
-            _logger.LogInformation("Creating backup: {BackupDir}", backupDir);
-            
-            if (Directory.Exists(_sptServerDir))
+            if (!ValidateDownloadedFile(tempFile, 100000000))
             {
-                try
-                {
-                    CopyDirectory(_sptServerDir, backupDir, true);
-                    _logger.LogInformation("Backup created successfully");
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Backup error");
-                }
+                throw new Exception("Downloaded file validation failed");
             }
 
             try
@@ -204,7 +189,6 @@ public partial class ModService
                     Directory.CreateDirectory(_sptServerDir);
                 }
 
-                // Extract archive directly to target directory
                 var process = new System.Diagnostics.Process
                 {
                     StartInfo = new System.Diagnostics.ProcessStartInfo
@@ -233,7 +217,6 @@ public partial class ModService
                 
                 _logger.LogInformation("Extraction completed");
 
-                // Verify SPT server file exists
                 var sptServerFile = Path.Combine(_sptServerDir, "SPT", "SPT.Server.Linux");
                 if (!File.Exists(sptServerFile))
                 {
@@ -244,28 +227,14 @@ public partial class ModService
                     }
                 }
 
-                // Set execute permissions
-                _logger.LogInformation("Setting execute permissions...");
-                var chmodProcess = new System.Diagnostics.Process
+                if (!EnsureSptPermissions())
                 {
-                    StartInfo = new System.Diagnostics.ProcessStartInfo
-                    {
-                        FileName = "chmod",
-                        Arguments = $"+x {_sptServerDir}/SPT/SPT.Server.Linux",
-                        UseShellExecute = false,
-                        CreateNoWindow = true
-                    }
-                };
-                
-                chmodProcess.Start();
-                chmodProcess.WaitForExit();
-                _logger.LogInformation("Permissions set");
+                    throw new Exception("Failed to set SPT permissions");
+                }
 
-                // Restart SPT server
                 _logger.LogInformation("Restarting SPT server...");
                 await StartSptServerAsync();
 
-                // Update version info
                 var latestVersion = ExtractVersionFromTag(Path.GetFileNameWithoutExtension(downloadUrl));
                 SaveSptVersion(latestVersion);
                 Environment.SetEnvironmentVariable("SPT_VERSION", latestVersion);
@@ -277,7 +246,6 @@ public partial class ModService
             {
                 _logger.LogError(ex, "Error during SPT update");
                 
-                // Restore from backup if update failed
                 if (Directory.Exists(backupDir))
                 {
                     _logger.LogInformation("Restoring backup...");
@@ -296,28 +264,42 @@ public partial class ModService
                 }
                 return false;
             }
-            finally
-            {
-                // Cleanup temporary file
-                try
-                {
-                    if (File.Exists(tempFile))
-                        File.Delete(tempFile);
-                }
-                catch (Exception cleanEx)
-                {
-                    _logger.LogWarning(cleanEx, "Error cleaning temporary file");
-                }
-            }
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "SPT update failed");
+            
+            if (!PerformRollback(backupDir))
+            {
+                _logger.LogError("Rollback also failed - manual intervention required");
+            }
+            
             return false;
         }
         finally
         {
-            // Remove update flag to resume normal monitoring
+            try
+            {
+                if (tempFile != null && File.Exists(tempFile))
+                    File.Delete(tempFile);
+            }
+            catch (Exception cleanEx)
+            {
+                _logger.LogWarning(cleanEx, "Error cleaning temporary file");
+            }
+            
+            if (Directory.Exists(backupDir))
+            {
+                try
+                {
+                    Directory.Delete(backupDir, true);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Error cleaning up backup");
+                }
+            }
+            
             try
             {
                 if (File.Exists("/tmp/updating.flag"))
@@ -331,9 +313,6 @@ public partial class ModService
         }
     }
 
-    /// <summary>
-    /// Stops the SPT server process
-    /// </summary>
     private async Task StopSptServerAsync()
     {
         try
@@ -360,7 +339,6 @@ public partial class ModService
             
             await Task.Delay(2000);
             
-            // Verify all processes are terminated
             var remainingProcesses = System.Diagnostics.Process.GetProcessesByName("SPT.Server.Linux");
             if (remainingProcesses.Length > 0)
             {
@@ -373,9 +351,6 @@ public partial class ModService
         }
     }
 
-    /// <summary>
-    /// Starts the SPT server process
-    /// </summary>
     private async Task StartSptServerAsync()
     {
         try
@@ -386,14 +361,12 @@ public partial class ModService
                 throw new Exception("SPT.Server.Linux file not found");
             }
             
-            // Ensure execute permissions
             var chmodProcess = System.Diagnostics.Process.Start("chmod", $"+x \"{sptPath}\"");
             if (chmodProcess != null)
             {
                 chmodProcess.WaitForExit();
             }
             
-            // Start SPT server process
             var startProcess = new System.Diagnostics.Process
             {
                 StartInfo = new System.Diagnostics.ProcessStartInfo
@@ -409,7 +382,6 @@ public partial class ModService
             };
             
             startProcess.Start();
-            
             await Task.Delay(5000);
         }
         catch (Exception ex)
@@ -420,11 +392,175 @@ public partial class ModService
 
     #endregion
 
+    #region SPT Update Validation & Safety
+
+    private bool HasSufficientDiskSpace(long requiredBytes, string directory = null)
+    {
+        try
+        {
+            var drive = new DriveInfo(directory ?? _sptServerDir);
+            var availableSpace = drive.AvailableFreeSpace;
+            var safetyBuffer = requiredBytes * 1.5;
+            
+            if (availableSpace < safetyBuffer)
+            {
+                _logger.LogWarning("Insufficient disk space: {Available}MB available, {Required}MB required", 
+                    availableSpace / 1024 / 1024, safetyBuffer / 1024 / 1024);
+                return false;
+            }
+            
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Error checking disk space");
+            return true;
+        }
+    }
+
+    private bool ValidateDownloadedFile(string filePath, long expectedMinSize = 1000000)
+    {
+        try
+        {
+            if (!File.Exists(filePath))
+            {
+                _logger.LogError("Downloaded file not found: {FilePath}", filePath);
+                return false;
+            }
+
+            var fileInfo = new FileInfo(filePath);
+            
+            if (fileInfo.Length < expectedMinSize)
+            {
+                _logger.LogError("Downloaded file too small: {Size} bytes", fileInfo.Length);
+                return false;
+            }
+
+            if (fileInfo.Length == 0)
+            {
+                _logger.LogError("Downloaded file is empty");
+                return false;
+            }
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error validating downloaded file");
+            return false;
+        }
+    }
+
+    private string? CreateBackup()
+    {
+        try
+        {
+            if (!Directory.Exists(_sptServerDir))
+            {
+                _logger.LogWarning("SPT server directory does not exist, skipping backup");
+                return null;
+            }
+
+            var backupDir = Path.Combine(Path.GetTempPath(), $"spt-backup-{Guid.NewGuid()}");
+            Directory.CreateDirectory(backupDir);
+            
+            _logger.LogInformation("Creating backup at: {BackupDir}", backupDir);
+            CopyDirectory(_sptServerDir, backupDir, true);
+            _logger.LogInformation("Backup created successfully");
+            
+            return backupDir;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error creating backup");
+            return null;
+        }
+    }
+
+    private bool PerformRollback(string backupDir)
+    {
+        try
+        {
+            if (string.IsNullOrEmpty(backupDir) || !Directory.Exists(backupDir))
+            {
+                _logger.LogError("Backup directory not available for rollback: {BackupDir}", backupDir);
+                return false;
+            }
+
+            _logger.LogInformation("Performing rollback from: {BackupDir}", backupDir);
+            
+            if (Directory.Exists(_sptServerDir))
+            {
+                SafeDeleteDirectory(_sptServerDir);
+            }
+
+            Directory.Move(backupDir, _sptServerDir);
+            
+            _logger.LogInformation("Rollback completed successfully");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Rollback failed");
+            return false;
+        }
+    }
+
+    private bool EnsureSptPermissions()
+    {
+        try
+        {
+            var sptServerPath = Path.Combine(_sptServerDir, "SPT", "SPT.Server.Linux");
+            
+            if (!File.Exists(sptServerPath))
+            {
+                var allFiles = Directory.GetFiles(_sptServerDir, "SPT.Server.Linux", SearchOption.AllDirectories);
+                if (allFiles.Length == 0)
+                {
+                    _logger.LogError("SPT.Server.Linux not found after update");
+                    return false;
+                }
+                sptServerPath = allFiles[0];
+            }
+
+            var process = new System.Diagnostics.Process
+            {
+                StartInfo = new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = "chmod",
+                    Arguments = $"+x \"{sptServerPath}\"",
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                }
+            };
+            
+            process.Start();
+            process.WaitForExit(5000);
+            
+            if (process.ExitCode != 0)
+            {
+                _logger.LogWarning("chmod failed with exit code: {ExitCode}", process.ExitCode);
+            }
+
+            if (!File.Exists(sptServerPath))
+            {
+                _logger.LogError("SPT server file not found after permission setting");
+                return false;
+            }
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error ensuring SPT permissions");
+            return false;
+        }
+    }
+
+    #endregion
+
     #region SPT Support Methods
 
-    /// <summary>
-    /// Generates download URL from GitHub release tag
-    /// </summary>
     private string GenerateDownloadUrlFromTag(string tag)
     {
         if (string.IsNullOrEmpty(tag))
@@ -438,9 +574,6 @@ public partial class ModService
         return downloadUrl;
     }
 
-    /// <summary>
-    /// Extracts download URL from release body using regex patterns
-    /// </summary>
     private string ExtractDownloadUrlFromBody(string body)
     {
         if (string.IsNullOrEmpty(body))
@@ -449,7 +582,6 @@ public partial class ModService
             return "";
         }
             
-        // Multiple patterns to extract download URL from release body
         var patterns = new[]
         {
             @"Direct Download\r\n(https?://[^\s]+)",
@@ -468,7 +600,6 @@ public partial class ModService
             }
         }
         
-        // Fallback: look for any .7z URL
         var fallbackMatch = Regex.Match(body, @"(https?://[^\s]+\.7z)", RegexOptions.IgnoreCase);
         if (fallbackMatch.Success)
         {
@@ -480,9 +611,6 @@ public partial class ModService
         return "";
     }
 
-    /// <summary>
-    /// Extracts version number from tag
-    /// </summary>
     private string ExtractVersionFromTag(string tag)
     {
         if (string.IsNullOrEmpty(tag))
@@ -498,9 +626,6 @@ public partial class ModService
         return tag;
     }
 
-    /// <summary>
-    /// Compares version strings to determine if update is available
-    /// </summary>
     private bool IsNewerVersion(string latest, string current)
     {
         try
@@ -522,7 +647,6 @@ public partial class ModService
         {
             _logger.LogWarning(ex, "Error in version comparison");
             
-            // Fallback string comparison
             try
             {
                 var currentMain = ExtractMainVersion(current);
@@ -537,9 +661,6 @@ public partial class ModService
         }
     }
 
-    /// <summary>
-    /// Extracts main version number from string using regex
-    /// </summary>
     private string ExtractMainVersion(string version)
     {
         if (string.IsNullOrEmpty(version))
@@ -547,14 +668,12 @@ public partial class ModService
             return "0.0.0";
         }
         
-        // Try standard version format (X.X.X)
         var match = Regex.Match(version, @"(\d+\.\d+\.\d+)");
         if (match.Success)
         {
             return match.Groups[1].Value;
         }
         
-        // Fallback: extract three consecutive numbers
         var numbers = Regex.Matches(version, @"\d+");
         if (numbers.Count >= 3)
         {

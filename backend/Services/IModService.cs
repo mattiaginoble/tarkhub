@@ -15,12 +15,10 @@ public interface IModService
     Task<(bool Success, string Message, Mod? Mod)> AddModToListAsync(string listName, string modUrl);
     bool RemoveModFromList(string listName, int modId);
     
-    // SPT versions
+    // SPT and Fika versions
     Task<List<SptVersion>> GetSptVersionsAsync();
     string? GetSelectedSptVersion(string listName);
     bool UpdateSelectedSptVersion(string listName, string sptVersion);
-    
-    // AGGIUNGI QUESTI METODI PER LE VERSIONI CORRENTI
     string GetCurrentSptVersion();
     string GetCurrentFikaVersion();
     
@@ -46,4 +44,5 @@ public interface IModService
     // Utilities
     string? ExtractModIdFromUrl(string url);
     Task<Mod?> FetchModDataAsync(string modId);
+    bool ValidateSptInstallation();
 }

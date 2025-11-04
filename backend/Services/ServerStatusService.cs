@@ -7,9 +7,6 @@ public partial class ModService
 {
     #region Server Status
 
-    /// <summary>
-    /// Gets the current server status with lightweight implementation
-    /// </summary>
     public async Task<ServerStatusInfo> GetServerStatusAsync()
     {
         try
@@ -42,9 +39,6 @@ public partial class ModService
         }
     }
 
-    /// <summary>
-    /// Gets player count by analyzing profile files and websocket connections
-    /// </summary>
     private async Task<string> GetConnectedPlayersSimpleAsync()
     {
         try
@@ -56,7 +50,6 @@ public partial class ModService
                 return "0/0";
             }
 
-            // Count valid profile files
             var profileFiles = Directory.GetFiles(profilesPath, "*.json", SearchOption.TopDirectoryOnly)
                                     .Where(f => 
                                     {
@@ -66,8 +59,6 @@ public partial class ModService
                                     .ToArray();
 
             var maxPlayers = profileFiles.Length;
-            
-            // Count active connections from websocket logs
             var connectedCount = await CountWebsocketConnectionsAsync();
             
             return $"{connectedCount}/{maxPlayers}";
@@ -79,9 +70,6 @@ public partial class ModService
         }
     }
 
-    /// <summary>
-    /// Counts active websocket connections
-    /// </summary>
     private async Task<int> CountWebsocketConnectionsAsync()
     {
         try
@@ -90,7 +78,6 @@ public partial class ModService
             if (!Directory.Exists(logBasePath))
                 return 0;
 
-            // Get most recent log file
             var recentLogFile = Directory.GetFiles(logBasePath, "spt*.log", SearchOption.AllDirectories)
                                     .OrderByDescending(f => File.GetLastWriteTime(f))
                                     .FirstOrDefault();
@@ -98,7 +85,6 @@ public partial class ModService
             if (recentLogFile == null)
                 return 0;
 
-            // Analyze last 50 lines for connection patterns
             var lines = await File.ReadAllLinesAsync(recentLogFile);
             var recentLines = lines.TakeLast(50).ToArray();
 
@@ -107,7 +93,6 @@ public partial class ModService
 
             foreach (var line in recentLines)
             {
-                // Detect websocket connection events with profile IDs
                 if (line.Contains("/notifierServer/getwebsocket/"))
                 {
                     var pattern = @"/notifierServer/getwebsocket/([a-f0-9]{20,})";
@@ -118,25 +103,23 @@ public partial class ModService
                     }
                 }
 
-                // Detect logout events
                 if (line.Contains("/client/game/logout"))
                 {
                     logoutEvents.Add("logout");
                 }
             }
 
-            // Determine connection status based on events
             if (logoutEvents.Count > 0)
             {
-                return 0; // Player disconnected
+                return 0;
             }
             else if (connectionEvents.Count > 0)
             {
-                return 1; // Player connected (connection without logout)
+                return 1;
             }
             else
             {
-                return 0; // No activity detected
+                return 0;
             }
         }
         catch (Exception ex)
@@ -146,9 +129,6 @@ public partial class ModService
         }
     }
 
-    /// <summary>
-    /// Checks if SPT server process is running
-    /// </summary>
     private bool IsSptServerRunning()
     {
         try
@@ -164,9 +144,6 @@ public partial class ModService
 
     private static readonly DateTime _appStartTime = DateTime.UtcNow;
 
-    /// <summary>
-    /// Gets application uptime
-    /// </summary>
     private string GetContainerUptime()
     {
         try

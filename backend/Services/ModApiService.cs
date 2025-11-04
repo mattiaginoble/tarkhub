@@ -7,17 +7,19 @@ public partial class ModService
 {
     #region API Calls and Fetch Data
 
-    /// <summary>
-    /// Fetches mod data from Forge API including version information
-    /// </summary>
     public async Task<Mod?> FetchModDataAsync(string modId)
     {
         try
         {
+            var cacheKey = $"mod_{modId}";
+            if (_apiCache.TryGetValue(cacheKey, out var cached) && cached.Expiry > DateTime.UtcNow)
+            {
+                return JsonSerializer.Deserialize<Mod>(cached.Content);
+            }
+
             var baseUrl = $"https://forge.sp-tarkov.com/api/v0/mod/{modId}";
             var versionPage1Url = $"https://forge.sp-tarkov.com/api/v0/mod/{modId}/versions?page=1";
 
-            // Fetch basic mod information con cache
             var baseContent = await FetchWithCacheAndRetryAsync(baseUrl);
             if (string.IsNullOrEmpty(baseContent))
                 return null;
@@ -25,7 +27,6 @@ public partial class ModService
             using var baseDoc = JsonDocument.Parse(baseContent);
             var baseData = baseDoc.RootElement.GetProperty("data");
 
-            // Fetch version information to determine pagination
             var versionContentPage1 = await FetchWithCacheAndRetryAsync(versionPage1Url);
             if (string.IsNullOrEmpty(versionContentPage1))
                 return null;
@@ -34,7 +35,6 @@ public partial class ModService
             var meta = versionDocPage1.RootElement.GetProperty("meta");
             int lastPage = meta.GetProperty("last_page").GetInt32();
 
-            // Get the last page of versions (contains the oldest versions)
             var versionLastPageUrl = $"https://forge.sp-tarkov.com/api/v0/mod/{modId}/versions?page={lastPage}";
             var versionContentLastPage = await FetchWithCacheAndRetryAsync(versionLastPageUrl);
             if (string.IsNullOrEmpty(versionContentLastPage))
@@ -44,7 +44,6 @@ public partial class ModService
 
             var versions = versionDocLastPage.RootElement.GetProperty("data").EnumerateArray();
 
-            // Get the last version in the array (oldest version)
             JsonElement latestVersion = default;
             foreach (var v in versions)
             {
@@ -60,7 +59,6 @@ public partial class ModService
                 ? linkElement.GetString() ?? ""
                 : "";
 
-            // Get content length from the latest version
             string contentLengthMB = "0 MB";
             if (latestVersion.TryGetProperty("content_length", out var contentLengthElement))
             {
@@ -69,9 +67,7 @@ public partial class ModService
                 contentLengthMB = $"{megabytes:F1} MB";
             }
 
-            _logger.LogInformation("Download URL for mod {ModId}: {DownloadUrl}", modId, downloadUrl);
-
-            return new Mod
+            var mod = new Mod
             {
                 Id = baseData.GetProperty("id").GetInt32(),
                 Name = baseData.GetProperty("name").GetString() ?? "Unknown",
@@ -89,6 +85,11 @@ public partial class ModService
                 DownloadUrl = downloadUrl,
                 ContentLength = contentLengthMB
             };
+
+            var modJson = JsonSerializer.Serialize(mod);
+            _apiCache[cacheKey] = (modJson, DateTime.UtcNow.Add(_cacheDuration));
+
+            return mod;
         }
         catch (Exception ex)
         {
@@ -97,11 +98,15 @@ public partial class ModService
         }
     }
 
-    /// <summary>
-    /// Retrieves all available SPT versions from Forge API
-    /// </summary>
     public async Task<List<SptVersion>> GetSptVersionsAsync()
     {
+        var cacheKey = GetSptVersionsCacheKey();
+        
+        if (_apiCache.TryGetValue(cacheKey, out var cached) && cached.Expiry > DateTime.UtcNow)
+        {
+            return JsonSerializer.Deserialize<List<SptVersion>>(cached.Content) ?? new List<SptVersion>();
+        }
+
         try
         {
             var urlPage1 = "https://forge.sp-tarkov.com/api/v0/spt/versions?page=1";
@@ -114,7 +119,6 @@ public partial class ModService
             var meta = docPage1.RootElement.GetProperty("meta");
             int lastPage = meta.GetProperty("last_page").GetInt32();
 
-            // Get the last page to access all SPT versions
             var urlLastPage = $"https://forge.sp-tarkov.com/api/v0/spt/versions?page={lastPage}";
             var contentLastPage = await FetchWithCacheAndRetryAsync(urlLastPage);
             if (string.IsNullOrEmpty(contentLastPage))
@@ -132,11 +136,13 @@ public partial class ModService
                 });
             }
 
-            // Sort versions in descending order (newest first)
             sptList = sptList
                 .OrderByDescending(s => s.VersionMajor)
                 .ThenByDescending(s => Version.Parse(s.Version))
                 .ToList();
+
+            var sptJson = JsonSerializer.Serialize(sptList);
+            _apiCache[cacheKey] = (sptJson, DateTime.UtcNow.Add(_modCacheDuration));
 
             return sptList;
         }
@@ -147,9 +153,6 @@ public partial class ModService
         }
     }
 
-    /// <summary>
-    /// Gets the latest version of a mod from Forge API
-    /// </summary>
     public async Task<string?> GetLatestModVersionAsync(string modId)
     {
         try
@@ -163,7 +166,6 @@ public partial class ModService
             var meta = versionDocPage1.RootElement.GetProperty("meta");
             int lastPage = meta.GetProperty("last_page").GetInt32();
 
-            // Get the last page to find the oldest version (first version uploaded)
             var versionLastPageUrl = $"https://forge.sp-tarkov.com/api/v0/mod/{modId}/versions?page={lastPage}";
             var versionContentLastPage = await FetchWithCacheAndRetryAsync(versionLastPageUrl);
             if (string.IsNullOrEmpty(versionContentLastPage))
@@ -188,5 +190,16 @@ public partial class ModService
         }
     }
 
+    public void ClearCache(string? specificKey = null)
+    {
+        if (specificKey != null)
+        {
+            _apiCache.TryRemove(specificKey, out _);
+        }
+        else
+        {
+            _apiCache.Clear();
+        }
+    }
     #endregion
 }

@@ -7,9 +7,6 @@ public partial class ModService
 {
     #region Mod List Management
 
-    /// <summary>
-    /// Adds a mod to the specified list by extracting mod ID from URL
-    /// </summary>
     public async Task<(bool Success, string Message, Mod? Mod)> AddModToListAsync(string listName, string modUrl)
     {
         var modId = ExtractModIdFromUrl(modUrl);
@@ -31,9 +28,6 @@ public partial class ModService
         return (true, "Mod added successfully", mod);
     }
 
-    /// <summary>
-    /// Removes a mod from the specified list by mod ID
-    /// </summary>
     public bool RemoveModFromList(string listName, int modId)
     {
         var list = LoadList(listName);
@@ -48,12 +42,8 @@ public partial class ModService
         return false;
     }
 
-    /// <summary>
-    /// Extracts mod ID from Forge mod URL using regex
-    /// </summary>
     public string? ExtractModIdFromUrl(string url)
     {
-        // Extract mod ID from URL using regex pattern
         var match = Regex.Match(url, @"/mod/(\d+)");
         return match.Success ? match.Groups[1].Value : null;
     }
@@ -62,9 +52,6 @@ public partial class ModService
 
     #region Mod Update Checking
 
-    /// <summary>
-    /// Checks for updates for all mods in a list
-    /// </summary>
     public async Task<List<Mod>> CheckModUpdatesAsync(string listName)
     {
         var list = LoadList(listName);
@@ -85,7 +72,6 @@ public partial class ModService
             }
         }
 
-        // Save list if any updates were found
         if (updatedMods.Any())
         {
             SaveList(list);
@@ -95,9 +81,6 @@ public partial class ModService
         return updatedMods;
     }
 
-    /// <summary>
-    /// Checks for updates for a single mod in a list
-    /// </summary>
     public async Task<Mod?> CheckSingleModUpdateAsync(string listName, int modId)
     {
         var list = LoadList(listName);
@@ -110,7 +93,6 @@ public partial class ModService
             {
                 var originalVersion = mod.Version;
                 
-                // Update mod properties with latest data
                 mod.Name = updatedMod.Name;
                 mod.Version = updatedMod.Version;
                 mod.SptVersionConstraint = updatedMod.SptVersionConstraint;

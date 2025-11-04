@@ -1,33 +1,50 @@
 # 🚀 TarkHub Roadmap
 
-This list tracks the main activities and necessary changes.
+## 🎯 Current Focus (v1.0.x) - Bug Fixes & Polish
 
-## 💻 Backend (C# API)
+### 💻 Backend (C# API)
 
-- [x] Implement Mod downloader system.
-- [x] Implement Mod versioning check.
-- [x] Retrieve new Mod version.
-- [x] Check installed Mod in the list.
-- [x] Update button to download new mod version and update JSON.
-- [x] Notify when SPT has a new release.
-- [x] **[New Feature]** Auto download and install new SPT version.
-- [x] Notify when Fika has a new release.
-- [x] **[New Feature]** Auto download and install new Fika version.
-- [x] **[Bugfix/Feature]** Implement **Delete** button for automatic deletion of a mod's files.
-- [x] **[Bugfix/Feature]** Limit API calls to updates services.
+- [ ] **[Cleanup]** Code cleanup and refactoring
+- [x] **[Bugfix]** Handle edge cases in SPT and mod installation process
 
-## 🎨 Frontend (Vite)
+### 🎨 Frontend (Vite)
 
-- [x] Add button to check for new Mod/SPT version.
-- [x] Add name list to path URL with React Router.
-- [x] **[UI/UX]** Develop a modern and clean layout for the main dashboard.
-- [x] **[UI/UX]** Adjust color scheme.
+- [ ] **[UI/UX]** Improve responsive design for mobile devices
+- [ ] **[Cleanup]** Remove unused dependencies and components
+- [ ] **[UI/UX]** Improved message management
 
-## 📦 Infrastructure (Docker & NGINX)
+## 🔮 Future Features (v1.1.0)
 
-- [x] Cleanup temp zip/7z files.
-- [x] Finalize the `.gitignore` and `.dockerignore` rules.
-- [x] **[Containerization]** Configure **NGINX** to serve the Frontend and act as a reverse proxy for the C# API Backend.
-- [x] **[Deployment]** Create startup script for the Docker Compose environment.
-- [x] **[Optimization]** Optimize the **Dockerfile** for faster builds.
-- [ ] **[Optimization]** Cleanup code
+### 💻 Backend (C# API)
+
+- [ ] **[New Feature]** Integrate SPT mod website search functionality
+- [ ] **[New Feature]** Add mod tagging system (server/client/both)
+- [ ] **[New Feature]** Implement client mod synchronization across connected clients
+- [ ] **[New Feature]** Add mod dependency resolution
+- [ ] **[New Feature]** Ability to move mods to other lists
+
+### 🎨 Frontend (Vite)
+
+- [ ] **[UI/UX]** Add mod search bar with SPT website integration
+- [ ] **[UI/UX]** Display mod tags (server/client/both) in mod list
+- [ ] **[UI/UX]** Add synchronization status indicator for client mods
+
+## ✅ Completed Features
+
+### Backend
+
+- [x] SPT and Fika installation process
+- [x] Modlist system
+- [x] Mod downloader system with version checking
+- [x] SPT update system (notification + auto-download)
+- [x] Fika update system (notification + auto-download)
+
+### Frontend
+
+- [x] React Router integration with URL paths
+- [x] Modern dashboard layout
+
+### Infrastructure
+
+- [x] Docker environment with NGINX reverse proxy
+- [x] Optimized build process and file cleanup

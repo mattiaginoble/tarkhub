@@ -31,6 +31,53 @@ app.MapFallbackToFile("/mod/{*path:nonfile}", "mod/index.html");
 
 app.Run();
 
+app.MapGet("/health", () => 
+{
+    return Results.Ok(new { 
+        status = "healthy", 
+        timestamp = DateTime.UtcNow,
+        services = new {
+            dotnet = "running",
+            spt = "checking...",
+            nginx = "checking..."
+        }
+    });
+});
+
+app.MapGet("/health/detailed", async (ModService modService) =>
+{
+    var sptHealth = false;
+    var nginxHealth = false;
+    
+    try
+    {
+        // Check SPT server
+        using var client = new HttpClient();
+        var response = await client.GetAsync("http://localhost:6970/");
+        sptHealth = response.IsSuccessStatusCode;
+    }
+    catch { /* SPT might be starting */ }
+    
+    try
+    {
+        // Check nginx
+        using var client = new HttpClient();
+        var response = await client.GetAsync("http://localhost:6969/");
+        nginxHealth = response.IsSuccessStatusCode;
+    }
+    catch { /* nginx might be starting */ }
+    
+    return Results.Ok(new { 
+        status = "healthy", 
+        timestamp = DateTime.UtcNow,
+        services = new {
+            dotnet = "running",
+            spt = sptHealth ? "running" : "starting",
+            nginx = nginxHealth ? "running" : "starting"
+        }
+    });
+});
+
 // ==================================================
 // ROUTE EXTENSION METHODS
 // ==================================================
