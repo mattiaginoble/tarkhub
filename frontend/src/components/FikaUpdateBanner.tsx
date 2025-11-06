@@ -21,18 +21,20 @@ const FikaUpdateBanner: React.FC<FikaUpdateBannerProps> = ({
   return (
     <div className="update-banner fika-banner top-banner">
       <div className="banner-content">
-        <Info className="banner-icon" size={24} />
         <div className="banner-text">
-          <h3>Fika Update Available!</h3>
-          <p>
-            Current: {fikaUpdate.currentVersion} → New:{" "}
-            {fikaUpdate.latestVersion}
-          </p>
+          <Info className="banner-icon" size={24} />
+          <div className="banner-text-content">
+            <h3>Fika Update Available!</h3>
+            <p>
+              Current: {fikaUpdate.currentVersion} → New:{" "}
+              {fikaUpdate.latestVersion}
+            </p>
+          </div>
         </div>
         <button
           onClick={updateFika}
           disabled={isUpdatingFika}
-          className="btn-primary"
+          className="btn btn-primary"
         >
           {isUpdatingFika ? "Updating..." : "Update Fika"}
         </button>

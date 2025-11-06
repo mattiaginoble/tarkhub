@@ -1,16 +1,17 @@
 /* ===== MAIN STYLESHEET ===== */
-/* Global styles */
+/* Base styles */
+@import "./variables.css";
 @import "./globals.css";
 
 /* Component styles */
+@import "./components/Animation.css";
 @import "./components/Button.css";
 @import "./components/Card.css";
 @import "./components/Form.css";
 @import "./components/Banner.css";
-@import "./components/Animation.css";
 @import "./components/Modal.css";
 
-/* ===== APPLICATION-SPECIFIC RESPONSIVE STYLES ===== */
+/* ===== RESPONSIVE OVERRIDES ===== */
 @media (max-width: 768px) {
   .server-stats {
     grid-template-columns: 1fr;
@@ -34,22 +35,18 @@
   .button-group {
     flex-direction: column;
   }
-
-  .mod-actions {
-    flex-direction: column;
-  }
 }
 
 @media (max-width: 480px) {
   .main-wrapper {
-    padding: 0 0.5rem;
+    padding: 0 var(--space-2);
   }
 
   .banner-content {
-    padding: 0 0.5rem;
+    padding: 0 var(--space-2);
   }
 
   .app-header h1 {
-    font-size: 1.5rem;
+    font-size: var(--text-2xl);
   }
 }

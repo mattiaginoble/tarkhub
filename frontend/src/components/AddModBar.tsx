@@ -22,7 +22,7 @@ const AddModBar: React.FC<AddModBarProps> = ({
       className="mod-url-input"
       disabled={!currentList}
     />
-    <button type="submit" className="btn-primary" disabled={!currentList}>
+    <button type="submit" className="btn btn-primary" disabled={!currentList}>
       Add Mod
     </button>
   </form>

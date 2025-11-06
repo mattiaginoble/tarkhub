@@ -1,31 +1,10 @@
 /* ===== ANIMATIONS & INTERACTIONS ===== */
-/* Refresh button animations */
-.refresh-btn-compact {
-  background: none;
-  border: none;
-  padding: 0.5rem;
-  border-radius: 0.5rem;
-  cursor: pointer;
-  color: #a1a1aa;
-  transition: all 0.2s;
-}
-
-.refresh-btn-compact:hover:not(:disabled) {
-  background-color: #27272a;
-  color: #fafafa;
-}
-
-.refresh-btn-compact:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.refresh-btn-compact .spinning {
+.spinning {
   animation: spin 1s linear infinite;
 }
 
-.stat-value-compact svg {
-  flex-shrink: 0;
+.pulsing {
+  animation: pulse 2s infinite;
 }
 
 /* Animation keyframes */

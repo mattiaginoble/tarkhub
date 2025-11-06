@@ -1,9 +1,8 @@
 /* ===== BANNER COMPONENTS ===== */
-/* Base banner styles */
 .update-banner {
-  border-radius: 0.75rem;
-  padding: 1rem 1.5rem;
-  margin-bottom: 1rem;
+  border-radius: var(--radius-lg);
+  padding: var(--space-4) var(--space-6);
+  margin-bottom: var(--space-4);
   width: 100%;
   align-items: center;
   min-height: 80px;
@@ -22,42 +21,89 @@
 .banner-content {
   display: flex;
   align-items: center;
-  gap: 1rem;
+  gap: var(--space-4);
   width: 100%;
 }
 
 .banner-text {
   flex: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.banner-text-content {
+  flex: 1;
+  text-align: left;
 }
 
 .banner-text h3 {
-  color: #fafafa;
-  font-size: 1.125rem;
+  color: var(--color-text-primary);
+  font-size: var(--text-lg);
   font-weight: 600;
+  margin: 0 0 var(--space-1) 0;
+}
+
+.banner-text p {
+  color: var(--color-text-primary);
+  margin: 0;
+  opacity: 0.9;
 }
 
 .banner-icon {
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  color: var(--color-text-primary);
 }
 
 /* ===== RESPONSIVE DESIGN ===== */
 @media (max-width: 768px) {
   .update-banner {
-    padding: 1rem;
+    padding: var(--space-4);
   }
 
   .banner-content {
-    flex-direction: column;
-    align-items: stretch;
-    text-align: center;
-    gap: 0.75rem;
+    flex-direction: row;
+    align-items: center;
+    gap: var(--space-3);
+  }
+
+  .banner-text {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+  }
+
+  .banner-text-content {
+    flex: 1;
+    text-align: left;
+  }
+
+  .banner-icon {
+    align-self: center;
+  }
+}
+
+@media (max-width: 480px) {
+  .banner-content {
+    gap: var(--space-2);
+  }
+
+  .banner-text {
+    gap: var(--space-2);
   }
 
   .banner-text h3 {
-    font-size: 1rem;
+    font-size: var(--text-base);
   }
 
   .banner-text p {
-    font-size: 0.8rem;
+    font-size: var(--text-sm);
+  }
+
+  .banner-icon {
+    font-size: 0.9em;
   }
 }
