@@ -1,19 +1,20 @@
 # 🚀 TarkHub Roadmap
 
-## 🎯 Current Focus (v1.0.x) - Bug Fixes & Polish
+## 🎯 Current Focus (v1.0.x) - Stabilization & Cleanup
+
+_Focus: Code quality and bug fixes based on user testing_
 
 ### 💻 Backend (C# API)
 
 - [ ] **[Cleanup]** Code cleanup and refactoring
-- [x] **[Bugfix]** Handle edge cases in SPT and mod installation process
+- [ ] **[Bugfix]** Any critical issues reported during testing
 
 ### 🎨 Frontend (Vite)
 
-- [ ] **[UI/UX]** Improve responsive design for mobile devices
 - [ ] **[Cleanup]** Remove unused dependencies and components
-- [x] **[UI/UX]** Improved message management with custom modals
+- [ ] **[Bugfix]** UI/UX improvements based on user feedback
 
-## 🔮 Future Features (v1.1.0)
+## 🔮 Next Major Release (v1.1.0) - Mod Management Suite
 
 ### 💻 Backend (C# API)
 
@@ -31,7 +32,23 @@
 
 ## ✅ Completed Features
 
-### Backend
+### v1.0.1 - Production Ready Release
+
+**Backend**
+
+- [x] Handle edge cases in SPT and mod installation process
+- [x] Improved error handling and validation
+
+**Frontend**
+
+- [x] PWA support for mobile/desktop installation
+- [x] Improved responsive design for mobile devices
+- [x] Improved message management with custom modals
+- [x] Enhanced user experience and stability
+
+### v1.0.0 - Core Platform
+
+**Backend**
 
 - [x] SPT and Fika installation process
 - [x] Modlist system
@@ -39,12 +56,12 @@
 - [x] SPT update system (notification + auto-download)
 - [x] Fika update system (notification + auto-download)
 
-### Frontend
+**Frontend**
 
 - [x] React Router integration with URL paths
 - [x] Modern dashboard layout
 
-### Infrastructure
+**Infrastructure**
 
 - [x] Docker environment with NGINX reverse proxy
 - [x] Optimized build process and file cleanup

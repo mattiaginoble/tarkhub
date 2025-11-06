@@ -71,6 +71,8 @@ const ModListControls: React.FC<ModListControlsProps> = ({
             onChange={onListChange}
             className="list-select-input"
             style={{ width: `${selectWidth}px` }}
+            aria-label="Select mod list"
+            title="Choose which mod list to display"
           >
             <option value="" disabled>
               -- Select a list --

@@ -37,6 +37,8 @@ const SptVersionSelector: React.FC<SptVersionSelectorProps> = ({
         value={selectedSptVersion}
         onChange={handleChange}
         className="version-input"
+        aria-label="Select SPT version"
+        title="Choose SPT version"
       >
         {sptVersions.map((spt) => (
           <option key={spt.version} value={spt.version}>

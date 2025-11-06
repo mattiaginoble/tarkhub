@@ -25,6 +25,44 @@ interface ServerStatusInfo {
   timestamp: string;
 }
 
+const getCachedSptVersion = (): string => {
+  try {
+    return localStorage.getItem("spt_version") || "unknown";
+  } catch (error) {
+    console.error("Error reading SPT version from localStorage:", error);
+    return "unknown";
+  }
+};
+
+const saveSptVersionToCache = (version: string) => {
+  try {
+    if (version && version !== "unknown") {
+      localStorage.setItem("spt_version", version);
+    }
+  } catch (error) {
+    console.error("Error saving SPT version to localStorage:", error);
+  }
+};
+
+const getCachedPlayers = (): string => {
+  try {
+    return localStorage.getItem("spt_players") || "0/0";
+  } catch (error) {
+    console.error("Error reading players from localStorage:", error);
+    return "0/0";
+  }
+};
+
+const savePlayersToCache = (players: string) => {
+  try {
+    if (players && players !== "0/0") {
+      localStorage.setItem("spt_players", players);
+    }
+  } catch (error) {
+    console.error("Error saving players to localStorage:", error);
+  }
+};
+
 const normalizeListName = (listName: string): string => {
   if (!listName) return "";
   return listName.charAt(0).toUpperCase() + listName.slice(1).toLowerCase();
@@ -38,9 +76,9 @@ const ServerStatus: React.FC<ServerStatusProps> = ({
 }) => {
   const { showModal } = useModal();
   const [serverInfo, setServerInfo] = useState<ServerStatusInfo>({
-    sptVersion: "unknown",
+    sptVersion: getCachedSptVersion(),
+    players: getCachedPlayers(),
     uptime: "0s",
-    players: "0/0",
     isRunning: false,
     timestamp: new Date().toISOString(),
   });
@@ -70,17 +108,35 @@ const ServerStatus: React.FC<ServerStatusProps> = ({
       const response = await fetch("/api/server/status");
       if (response.ok) {
         const data: ServerStatusInfo = await response.json();
+
+        if (data.sptVersion && data.sptVersion !== "unknown") {
+          saveSptVersionToCache(data.sptVersion);
+        }
+        if (data.players && data.players !== "0/0") {
+          savePlayersToCache(data.players);
+        }
+
         setServerInfo(data);
       } else {
+        const cachedVersion = getCachedSptVersion();
+        const cachedPlayers = getCachedPlayers();
         setServerInfo((prev) => ({
           ...prev,
+          sptVersion: cachedVersion,
+          players: cachedPlayers,
           isRunning: false,
-          players: "0/0",
         }));
       }
     } catch (error) {
       console.error("Error fetching server status:", error);
-      setServerInfo((prev) => ({ ...prev, isRunning: false, players: "0/0" }));
+      const cachedVersion = getCachedSptVersion();
+      const cachedPlayers = getCachedPlayers();
+      setServerInfo((prev) => ({
+        ...prev,
+        sptVersion: cachedVersion,
+        players: cachedPlayers,
+        isRunning: false,
+      }));
     }
   };
 
