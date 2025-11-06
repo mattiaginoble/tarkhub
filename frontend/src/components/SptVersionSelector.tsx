@@ -1,5 +1,5 @@
 import React from "react";
-import { SptVersion } from "../hooks/useModManager";
+import { SptVersion } from "../hooks/types";
 import { useModal } from "../components/ModalContext";
 
 interface SptVersionSelectorProps {
@@ -25,7 +25,7 @@ const SptVersionSelector: React.FC<SptVersionSelectorProps> = ({
 
     showModal({
       type: "success",
-      title: "SPT Version Updated",
+      title: "SPT Version",
       message: `SPT version changed to ${newVersion} for list "${currentList}"`,
       duration: 3000,
     });
@@ -33,7 +33,6 @@ const SptVersionSelector: React.FC<SptVersionSelectorProps> = ({
 
   return (
     <div className="version-row">
-      <span className="version-label">SPT Version:</span>
       <select
         value={selectedSptVersion}
         onChange={handleChange}

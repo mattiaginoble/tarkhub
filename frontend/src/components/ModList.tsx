@@ -3,20 +3,18 @@ import React, {
   useEffect,
   forwardRef,
   useImperativeHandle,
+  useRef,
 } from "react";
-import SptVersionSelector from "./SptVersionSelector";
 import AddModBar from "./AddModBar";
 import ModItem from "./ModItem";
-import { Mod } from "../hooks/useModManager";
-import { getVersionMajor } from "../utils/versionUtils";
+import { Mod } from "../hooks/types";
+import { useModUpdates } from "../hooks/useModUpdates";
 
 interface ModListProps {
   currentList: string;
   currentMods: Mod[];
   installedMods: Record<number, boolean>;
   selectedSptVersion: string;
-  sptVersions: any[];
-  handleSptVersionChange: (e: React.ChangeEvent<HTMLSelectElement>) => void;
   modUrl: string;
   setModUrl: (url: string) => void;
   addMod: (e: React.FormEvent<HTMLFormElement>) => void;
@@ -36,8 +34,6 @@ const ModList = forwardRef<ModListRef, ModListProps>(
       currentMods,
       installedMods,
       selectedSptVersion,
-      sptVersions,
-      handleSptVersionChange,
       modUrl,
       setModUrl,
       addMod,
@@ -47,64 +43,91 @@ const ModList = forwardRef<ModListRef, ModListProps>(
     },
     ref
   ) => {
+    const { modUpdates, refreshModUpdates, isCheckingModUpdates } =
+      useModUpdates(currentList);
+
     const [modsWithUpdates, setModsWithUpdates] = useState<Set<number>>(
       new Set()
     );
+
     const [updatedModsData, setUpdatedModsData] = useState<Record<number, Mod>>(
       {}
     );
 
+    const checkUpdateTimeoutRef = useRef<number>();
+
     const checkModUpdatesForList = async () => {
-      if (!currentList) return;
+      if (!currentList || isCheckingModUpdates) return;
 
       try {
-        const response = await fetch(
-          `/api/mod_list/${currentList}/check_updates`
-        );
-        if (response.ok) {
-          const updatedMods: Mod[] = await response.json();
-          const updateIds = new Set<number>();
-          const updatedData: Record<number, Mod> = {};
-
-          updatedMods.forEach((mod) => {
-            const modId = Number(mod.id);
-            if (!isNaN(modId)) {
-              updateIds.add(modId);
-              updatedData[mod.id] = {
-                ...mod,
-                updateAvailable: true,
-                latestVersion: mod.latestVersion || mod.version,
-              };
-            }
-          });
-
-          setModsWithUpdates(updateIds);
-          setUpdatedModsData(updatedData);
-        }
+        await refreshModUpdates(currentList);
       } catch (error) {
         console.error("Error checking mod updates:", error);
       }
     };
 
     const getEnhancedMod = (mod: Mod): Mod => {
-      const updateInfo = updatedModsData[mod.id];
-      return updateInfo
-        ? {
-            ...mod,
-            updateAvailable: true,
-            latestVersion: updateInfo.latestVersion,
-          }
-        : mod;
+      const updatedMod = modUpdates.find((m: Mod) => m.id === mod.id);
+      return updatedMod || mod;
     };
 
     useEffect(() => {
-      if (currentList) {
-        checkModUpdatesForList();
+      if (currentList && currentMods.length > 0) {
+        if (checkUpdateTimeoutRef.current) {
+          clearTimeout(checkUpdateTimeoutRef.current);
+        }
+
+        checkUpdateTimeoutRef.current = window.setTimeout(() => {
+          checkModUpdatesForList();
+        }, 1000);
       } else {
         setModsWithUpdates(new Set());
         setUpdatedModsData({});
       }
+
+      return () => {
+        if (checkUpdateTimeoutRef.current) {
+          clearTimeout(checkUpdateTimeoutRef.current);
+        }
+      };
     }, [currentList, currentMods]);
+
+    useEffect(() => {
+      if (currentMods.length > 0) {
+        setModsWithUpdates((prev) => {
+          const newSet = new Set(prev);
+          currentMods.forEach((mod) => {
+            newSet.delete(mod.id);
+          });
+          return newSet;
+        });
+
+        setUpdatedModsData((prev) => {
+          const newData = { ...prev };
+          currentMods.forEach((mod) => {
+            delete newData[mod.id];
+          });
+          return newData;
+        });
+      }
+    }, [currentMods]);
+
+    useEffect(() => {
+      if (modUpdates.length > 0) {
+        const updateIds = new Set<number>();
+        const updatedData: Record<number, Mod> = {};
+
+        modUpdates.forEach((mod: Mod) => {
+          if (mod.updateAvailable) {
+            updateIds.add(mod.id);
+            updatedData[mod.id] = mod;
+          }
+        });
+
+        setModsWithUpdates(updateIds);
+        setUpdatedModsData(updatedData);
+      }
+    }, [modUpdates]);
 
     useImperativeHandle(ref, () => ({
       forceCheckUpdates: checkModUpdatesForList,
@@ -114,8 +137,9 @@ const ModList = forwardRef<ModListRef, ModListProps>(
       return (
         <div className="mods-section">
           <div className="section-header">
-            <h2>Mods in (0)</h2>
+            <h2>0 Mods</h2>
           </div>
+
           <div className="empty-state">
             <p>Select an existing list or create a new one to get started.</p>
           </div>
@@ -129,8 +153,7 @@ const ModList = forwardRef<ModListRef, ModListProps>(
     return (
       <div className="mods-section">
         <div className="section-header">
-          <h2>
-            Mods in {currentList} ({enhancedMods.length})
+          <div className="section-header-title">
             {hasUpdates && (
               <span
                 className="update-badge-header pulsing"
@@ -139,13 +162,12 @@ const ModList = forwardRef<ModListRef, ModListProps>(
                 {modsWithUpdates.size} update(s)
               </span>
             )}
-          </h2>
-          <SptVersionSelector
-            currentList={currentList}
-            sptVersions={sptVersions}
-            selectedSptVersion={selectedSptVersion}
-            handleSptVersionChange={handleSptVersionChange}
-          />
+
+            <h2>
+              {enhancedMods.length} Mod{enhancedMods.length !== 1 ? "s" : ""} in{" "}
+              {currentList}
+            </h2>
+          </div>
         </div>
 
         <AddModBar
@@ -167,7 +189,6 @@ const ModList = forwardRef<ModListRef, ModListProps>(
                 mod={mod}
                 isInstalled={installedMods[mod.id]}
                 selectedSptVersion={selectedSptVersion}
-                getVersionMajor={getVersionMajor}
                 downloadMod={downloadMod}
                 handleUpdateAndDownload={handleUpdateAndDownload}
                 removeMod={removeMod}

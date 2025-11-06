@@ -5,8 +5,8 @@ import {
   Trash2Icon,
   DownloadIcon,
   UploadIcon,
-  XCircleIcon,
 } from "lucide-react";
+import SptVersionSelector from "./SptVersionSelector";
 
 interface ModListControlsProps {
   currentList: string;
@@ -17,7 +17,9 @@ interface ModListControlsProps {
   onDeleteList: () => void;
   onExportList: () => void;
   onImportList: () => void;
-  onClearCache: () => void;
+  selectedSptVersion: string;
+  sptVersions: any[];
+  handleSptVersionChange: (e: React.ChangeEvent<HTMLSelectElement>) => void;
 }
 
 const ModListControls: React.FC<ModListControlsProps> = ({
@@ -29,7 +31,9 @@ const ModListControls: React.FC<ModListControlsProps> = ({
   onDeleteList,
   onExportList,
   onImportList,
-  onClearCache,
+  selectedSptVersion,
+  sptVersions,
+  handleSptVersionChange,
 }) => {
   const selectRef = useRef<HTMLSelectElement>(null);
   const measureRef = useRef<HTMLSpanElement>(null);
@@ -60,9 +64,6 @@ const ModListControls: React.FC<ModListControlsProps> = ({
 
       <div className="modlist-controls-row">
         <div className="control-group control-group-main">
-          <label htmlFor="mod-list-select" className="control-label">
-            Load List:
-          </label>
           <select
             ref={selectRef}
             id="mod-list-select"
@@ -80,44 +81,48 @@ const ModListControls: React.FC<ModListControlsProps> = ({
               </option>
             ))}
           </select>
+
+          <SptVersionSelector
+            currentList={currentList}
+            sptVersions={sptVersions}
+            selectedSptVersion={selectedSptVersion}
+            handleSptVersionChange={handleSptVersionChange}
+          />
         </div>
 
         <div className="control-group control-group-buttons">
-          <button onClick={() => onAddList()} className="btn-secondary">
+          <button onClick={() => onAddList()} className="btn btn-primary">
             <PlusIcon size={18} aria-hidden="true" />
-            New List
+            <span className="btn-text">New List</span>
           </button>
+
           <button
             onClick={() => onRenameList()}
             disabled={!hasCurrentList}
-            className="btn-secondary"
+            className="btn btn-secondary"
           >
             <EditIcon size={18} aria-hidden="true" />
-            Rename
+            <span className="btn-text">Rename</span>
           </button>
           <button
             onClick={onDeleteList}
             disabled={!hasCurrentList}
-            className="btn-secondary"
+            className="btn btn-secondary"
           >
             <Trash2Icon size={18} aria-hidden="true" />
-            Delete
+            <span className="btn-text">Delete</span>
           </button>
           <button
             onClick={onExportList}
             disabled={!hasCurrentList}
-            className="btn-secondary"
+            className="btn btn-secondary"
           >
             <DownloadIcon size={18} aria-hidden="true" />
-            Export
+            <span className="btn-text">Export</span>
           </button>
-          <button onClick={() => onImportList()} className="btn-secondary">
+          <button onClick={() => onImportList()} className="btn btn-secondary">
             <UploadIcon size={18} aria-hidden="true" />
-            Import
-          </button>
-          <button onClick={onClearCache} className="btn-secondary">
-            <XCircleIcon size={18} aria-hidden="true" />
-            Clear Cache
+            <span className="btn-text">Import</span>
           </button>
         </div>
       </div>

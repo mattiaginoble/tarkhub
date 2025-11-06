@@ -6,10 +6,15 @@ import {
   AlertCircleIcon,
 } from "lucide-react";
 import { useModal } from "../components/ModalContext";
+import { useModUpdates } from "../hooks/useModUpdates";
+import { Mod } from "../hooks/types";
 
 interface ServerStatusProps {
   onRefresh?: () => Promise<void>;
   isChecking?: boolean;
+  currentList?: string;
+  onCheckModUpdates?: () => Promise<void>;
+  onUpdateInstalledStatus?: () => Promise<void>;
 }
 
 interface ServerStatusInfo {
@@ -20,18 +25,16 @@ interface ServerStatusInfo {
   timestamp: string;
 }
 
-interface UpdateInfo {
-  sptUpdateAvailable: boolean;
-  fikaUpdateAvailable: boolean;
-  modUpdatesAvailable: boolean;
-  sptLatestVersion?: string;
-  fikaLatestVersion?: string;
-  modUpdateCount?: number;
-}
+const normalizeListName = (listName: string): string => {
+  if (!listName) return "";
+  return listName.charAt(0).toUpperCase() + listName.slice(1).toLowerCase();
+};
 
 const ServerStatus: React.FC<ServerStatusProps> = ({
-  onRefresh,
   isChecking = false,
+  currentList,
+  onCheckModUpdates,
+  onUpdateInstalledStatus,
 }) => {
   const { showModal } = useModal();
   const [serverInfo, setServerInfo] = useState<ServerStatusInfo>({
@@ -42,13 +45,24 @@ const ServerStatus: React.FC<ServerStatusProps> = ({
     timestamp: new Date().toISOString(),
   });
 
-  const [updateInfo, setUpdateInfo] = useState<UpdateInfo>({
-    sptUpdateAvailable: false,
-    fikaUpdateAvailable: false,
-    modUpdatesAvailable: false,
-  });
+  const normalizedCurrentList = currentList
+    ? normalizeListName(currentList)
+    : "";
+
+  const {
+    sptUpdate,
+    fikaUpdate,
+    modUpdates,
+    refreshSptUpdate,
+    refreshFikaUpdate,
+    refreshModUpdates,
+    isCheckingSptUpdate,
+    isCheckingFikaUpdate,
+    isCheckingModUpdates,
+  } = useModUpdates(normalizedCurrentList);
 
   const [isSpinning, setIsSpinning] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const refreshTimeoutRef = useRef<number>();
 
   const fetchServerStatus = async () => {
@@ -70,124 +84,71 @@ const ServerStatus: React.FC<ServerStatusProps> = ({
     }
   };
 
-  const checkSptUpdate = async () => {
-    try {
-      const response = await fetch("/api/spt/check-update");
-      if (response.ok) {
-        const data = await response.json();
-        setUpdateInfo((prev) => ({
-          ...prev,
-          sptUpdateAvailable: data.updateAvailable,
-          sptLatestVersion: data.latestVersion,
-        }));
-      }
-    } catch (error) {
-      console.error("Error checking SPT update:", error);
-    }
-  };
-
-  const checkFikaUpdate = async () => {
-    try {
-      const response = await fetch("/api/fika/check-update");
-      if (response.ok) {
-        const data = await response.json();
-        setUpdateInfo((prev) => ({
-          ...prev,
-          fikaUpdateAvailable: data.updateAvailable,
-          fikaLatestVersion: data.latestVersion,
-        }));
-      }
-    } catch (error) {
-      console.error("Error checking Fika update:", error);
-    }
-  };
-
-  const checkModUpdates = async () => {
-    try {
-      const listsResponse = await fetch("/api/mod_lists");
-      if (!listsResponse.ok) return;
-
-      const listNames: string[] = await listsResponse.json();
-      let totalUpdateCount = 0;
-
-      for (const listName of listNames) {
-        const updatesResponse = await fetch(
-          `/api/mod_list/${listName}/check_updates`
-        );
-        if (updatesResponse.ok) {
-          const updatedMods = await updatesResponse.json();
-          totalUpdateCount += updatedMods.filter(
-            (mod: any) => mod.updateAvailable
-          ).length;
-        }
-      }
-
-      setUpdateInfo((prev) => ({
-        ...prev,
-        modUpdatesAvailable: totalUpdateCount > 0,
-        modUpdateCount: totalUpdateCount,
-      }));
-    } catch (error) {
-      console.error("Error checking mod updates:", error);
-    }
-  };
-
-  const checkAllUpdates = async () => {
-    await Promise.all([checkSptUpdate(), checkFikaUpdate(), checkModUpdates()]);
-  };
-
   useEffect(() => {
     fetchServerStatus();
-    const statusInterval = setInterval(fetchServerStatus, 10000);
+    const statusInterval = setInterval(fetchServerStatus, 30000);
     return () => clearInterval(statusInterval);
   }, []);
 
-  useEffect(() => {
-    checkAllUpdates();
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      if (refreshTimeoutRef.current) {
-        clearTimeout(refreshTimeoutRef.current);
-      }
-    };
-  }, []);
-
   const handleRefresh = async () => {
+    if (isRefreshing) return;
+
+    setIsRefreshing(true);
     setIsSpinning(true);
 
     try {
-      if (onRefresh) await onRefresh();
-      await Promise.all([fetchServerStatus(), checkAllUpdates()]);
+      const refreshPromises = [];
 
-      const hasUpdates =
-        updateInfo.sptUpdateAvailable ||
-        updateInfo.fikaUpdateAvailable ||
-        updateInfo.modUpdatesAvailable;
+      refreshPromises.push(refreshSptUpdate());
+      refreshPromises.push(refreshFikaUpdate());
 
-      let message = "All components are up to date.";
-      let modalType: "success" | "info" = "success";
+      refreshPromises.push(fetchServerStatus());
 
-      if (hasUpdates) {
-        const updates = [];
-        if (updateInfo.sptUpdateAvailable) updates.push("SPT");
-        if (updateInfo.fikaUpdateAvailable) updates.push("Fika");
-        if (updateInfo.modUpdatesAvailable)
-          updates.push(`${updateInfo.modUpdateCount} mods`);
+      if (normalizedCurrentList) {
+        refreshPromises.push(refreshModUpdates(normalizedCurrentList));
 
-        message = `Refresh completed. Updates available for: ${updates.join(
-          ", "
-        )}`;
-        modalType = "info";
+        if (onUpdateInstalledStatus) {
+          refreshPromises.push(
+            new Promise((resolve) => {
+              setTimeout(async () => {
+                await onUpdateInstalledStatus();
+                resolve(void 0);
+              }, 1000);
+            })
+          );
+        }
       }
 
-      showModal({
-        type: modalType,
-        title: "Refresh Completed",
-        message,
-        duration: 4000,
-      });
+      await Promise.all(refreshPromises);
+
+      const sptUpdates = sptUpdate?.updateAvailable ? 1 : 0;
+      const fikaUpdates = fikaUpdate?.updateAvailable ? 1 : 0;
+      const modUpdatesCount = modUpdates.filter(
+        (mod: Mod) => mod.updateAvailable
+      ).length;
+
+      const totalUpdates = sptUpdates + fikaUpdates + modUpdatesCount;
+
+      if (totalUpdates > 0) {
+        const updates = [];
+        if (sptUpdates > 0) updates.push("SPT");
+        if (fikaUpdates > 0) updates.push("Fika");
+        if (modUpdatesCount > 0) updates.push(`${modUpdatesCount} mods`);
+
+        showModal({
+          type: "info",
+          title: "Updates Available",
+          message: `Found updates for: ${updates.join(", ")}`,
+          duration: 5000,
+        });
+      } else {
+        showModal({
+          type: "success",
+          title: "All Up to Date",
+          message: "No updates available for SPT, Fika, or mods",
+          duration: 3000,
+        });
+      }
     } catch (error) {
       console.error("Refresh error:", error);
       showModal({
@@ -199,11 +160,16 @@ const ServerStatus: React.FC<ServerStatusProps> = ({
     } finally {
       refreshTimeoutRef.current = window.setTimeout(() => {
         setIsSpinning(false);
-      }, 2000);
+        setIsRefreshing(false);
+      }, 1000);
     }
   };
 
-  const showSpinning = isSpinning || isChecking;
+  const showSpinning =
+    isSpinning ||
+    isCheckingSptUpdate ||
+    isCheckingFikaUpdate ||
+    isCheckingModUpdates;
 
   return (
     <div className="server-status-compact">
@@ -214,7 +180,8 @@ const ServerStatus: React.FC<ServerStatusProps> = ({
         <button
           className="refresh-btn-compact"
           onClick={handleRefresh}
-          disabled={showSpinning}
+          disabled={showSpinning || isRefreshing}
+          title="Check for SPT, Fika, and mod updates"
         >
           <RefreshCwIcon size={18} className={showSpinning ? "spinning" : ""} />
         </button>
@@ -240,13 +207,12 @@ const ServerStatus: React.FC<ServerStatusProps> = ({
         <div className="stat-item-compact">
           <div className="stat-label-compact">Version</div>
           <div className="stat-value-compact version-info">
-            {updateInfo.sptUpdateAvailable && (
+            {sptUpdate?.updateAvailable && (
               <AlertCircleIcon size={16} className="version-alert-icon" />
             )}
             <span>{serverInfo.sptVersion}</span>
           </div>
         </div>
-
         <div className="stat-item-compact">
           <div className="stat-label-compact">Uptime</div>
           <div className="stat-value-compact">{serverInfo.uptime}</div>

@@ -4,7 +4,7 @@ import Modal from "./Modal";
 interface ConfirmationModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onConfirm?: (value?: string | boolean) => void;
+  onConfirm?: (inputValue?: string | boolean) => void;
   title: string;
   message: string;
   cancelText?: string;

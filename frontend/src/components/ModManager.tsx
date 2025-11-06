@@ -1,10 +1,10 @@
-import React from "react";
+import React, { memo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { ModalProvider } from "./ModalContext";
 import ModManagerContent from "./ModManagerContent";
 import "../styles/main.css";
 
-const ModManager: React.FC = () => {
+const ModManager: React.FC = memo(() => {
   const { listName } = useParams();
   const navigate = useNavigate();
 
@@ -13,6 +13,6 @@ const ModManager: React.FC = () => {
       <ModManagerContent listName={listName} navigate={navigate} />
     </ModalProvider>
   );
-};
+});
 
 export default ModManager;

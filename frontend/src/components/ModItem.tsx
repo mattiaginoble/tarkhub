@@ -7,19 +7,7 @@ import {
   CheckCircleIcon,
 } from "lucide-react";
 import { getVersionMajor } from "../utils/versionUtils";
-
-interface Mod {
-  id: number;
-  name: string;
-  version: string;
-  latestVersion?: string;
-  sptVersionConstraint: string;
-  thumbnail?: string;
-  detailUrl: string;
-  teaser?: string;
-  contentLength?: string;
-  updateAvailable?: boolean;
-}
+import { Mod } from "../hooks/types";
 
 interface ModItemProps {
   mod: Mod;
@@ -40,10 +28,19 @@ const ModItem: React.FC<ModItemProps> = ({
   selectedSptVersion,
   hasUpdate,
 }) => {
-  const modMajor = getVersionMajor(mod.sptVersionConstraint);
+  const modSptConstraint = mod.sptVersionConstraint || "N/A";
+  const isUnknown = modSptConstraint === "N/A";
+  const modMajor = isUnknown ? 0 : getVersionMajor(modSptConstraint);
   const selectedSptMajor = getVersionMajor(selectedSptVersion);
-  const isCompatible = modMajor === selectedSptMajor;
-  const compatibilityColor = isCompatible ? "#10b981" : "#dc2626";
+
+  let compatibilityColor;
+  if (isUnknown) {
+    compatibilityColor = "#f59e0b"; // giallo - sconosciuto
+  } else if (modMajor === selectedSptMajor) {
+    compatibilityColor = "#10b981"; // verde - compatibile
+  } else {
+    compatibilityColor = "#dc2626"; // rosso - incompatibile
+  }
 
   const showUpdateIndicator = hasUpdate || mod.updateAvailable;
   const latestVersion = mod.latestVersion || mod.version;
@@ -80,7 +77,7 @@ const ModItem: React.FC<ModItemProps> = ({
               <button
                 onClick={() => downloadMod(mod.id, mod.name)}
                 className={`btn ${
-                  isInstalled ? "btn-disabled" : "btn-success"
+                  isInstalled ? "btn-disabled" : "btn-primary"
                 }`}
                 disabled={isInstalled}
                 title={
@@ -92,16 +89,15 @@ const ModItem: React.FC<ModItemProps> = ({
                 {isInstalled ? (
                   <>
                     <CheckCircleIcon size={16} />
-                    Installed
+                    <span className="btn-text">Installed</span>
                   </>
                 ) : (
                   <>
                     <DownloadIcon size={16} />
-                    Download
+                    <span className="btn-text">Download</span>
                   </>
                 )}
               </button>
-
               <button
                 onClick={() => handleUpdateAndDownload(mod.id, mod.name)}
                 className={`btn ${
@@ -119,36 +115,35 @@ const ModItem: React.FC<ModItemProps> = ({
                 }
               >
                 <RefreshCwIcon size={16} />
-                Update
+                <span className="btn-text">Update</span>
               </button>
 
               <button
                 onClick={() => removeMod(mod.id, mod.name)}
                 className="btn btn-danger"
+                title="Remove mod from list"
               >
                 <Trash2Icon size={16} />
-                Remove
+                <span className="btn-text">Remove</span>
               </button>
             </div>
           </div>
-
-          <div className="mod-version-info">
-            <span>
-              Version: {mod.version}
-              {showUpdateIndicator && (
-                <span className="update-available-text">
-                  → {latestVersion} available!
-                </span>
-              )}
-            </span>
-            <span style={{ color: compatibilityColor }}>
-              SPT: {mod.sptVersionConstraint || "~4.0.0"}
-            </span>
+          <div className="mod-teaser">
+            <span>{mod.teaser || "No description"}</span>
           </div>
-
           <div className="mod-meta">
-            <div className="mod-teaser">
-              <span>{mod.teaser || "No description"}</span>
+            <div className="mod-version-info">
+              <span>
+                Version: {mod.version}
+                {showUpdateIndicator && (
+                  <span className="update-available-text">
+                    → {latestVersion} available!
+                  </span>
+                )}
+              </span>
+              <span style={{ color: compatibilityColor }}>
+                SPT: {modSptConstraint}
+              </span>
             </div>
             <div className="mod-status">
               {isInstalled && <span className="installed-tag">Installed</span>}

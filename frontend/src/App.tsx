@@ -3,7 +3,6 @@ import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import ModManager from "./components/ModManager";
 
 const RedirectToMod: React.FC = () => {
-  const navigate = window.location.pathname;
   React.useEffect(() => {
     window.location.replace("/mod");
   }, []);

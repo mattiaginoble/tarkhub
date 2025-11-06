@@ -1,6 +1,6 @@
 import React, { useRef } from "react";
 import { NavigateFunction } from "react-router-dom";
-import useModManager from "../hooks/useModManager";
+import { useModManager } from "../hooks/useModManager";
 import ModListControls from "./ModListControls";
 import SPTUpdateBanner from "./SPTUpdateBanner";
 import FikaUpdateBanner from "./FikaUpdateBanner";
@@ -18,15 +18,6 @@ const ModManagerContent: React.FC<ModManagerContentProps> = ({
 }) => {
   const modManager = useModManager({ listName, navigate });
   const modListRef = useRef<any>();
-
-  const handleGlobalRefresh = async () => {
-    console.log("Global refresh triggered");
-    await Promise.all([
-      modManager.checkSptUpdate?.(),
-      modManager.checkFikaUpdate?.(),
-      modListRef.current?.forceCheckUpdates?.(),
-    ]);
-  };
 
   return (
     <div className="main-wrapper">
@@ -64,8 +55,9 @@ const ModManagerContent: React.FC<ModManagerContentProps> = ({
       />
 
       <ServerStatus
-        onRefresh={handleGlobalRefresh}
-        isChecking={modManager.isCheckingSptUpdate}
+        currentList={modManager.currentList}
+        onCheckModUpdates={modManager.checkAllModUpdates}
+        onUpdateInstalledStatus={modManager.updateInstalledStatusOnce}
       />
 
       <div className="content-area">
@@ -78,7 +70,9 @@ const ModManagerContent: React.FC<ModManagerContentProps> = ({
           onDeleteList={modManager.deleteList}
           onExportList={modManager.downloadList}
           onImportList={modManager.importList}
-          onClearCache={modManager.clearInstalledCache}
+          selectedSptVersion={modManager.selectedSptVersion}
+          sptVersions={modManager.sptVersions}
+          handleSptVersionChange={modManager.handleSptVersionChange}
         />
 
         <ModList
@@ -87,8 +81,6 @@ const ModManagerContent: React.FC<ModManagerContentProps> = ({
           currentMods={modManager.currentMods}
           installedMods={modManager.installedMods}
           selectedSptVersion={modManager.selectedSptVersion}
-          sptVersions={modManager.sptVersions}
-          handleSptVersionChange={modManager.handleSptVersionChange}
           modUrl={modManager.modUrl}
           setModUrl={modManager.setModUrl}
           addMod={modManager.addMod}
