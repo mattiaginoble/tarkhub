@@ -1,4 +1,5 @@
 using ForgeModApi.Services;
+using ForgeModApi.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -28,8 +29,6 @@ app.MapServerStatusRoutes();
 
 // SPA fallback
 app.MapFallbackToFile("/mod/{*path:nonfile}", "mod/index.html");
-
-app.Run();
 
 app.MapGet("/health", () => 
 {
@@ -78,6 +77,8 @@ app.MapGet("/health/detailed", async (ModService modService) =>
     });
 });
 
+app.Run();
+
 // ==================================================
 // ROUTE EXTENSION METHODS
 // ==================================================
@@ -96,10 +97,29 @@ public static class RouteExtensions
         });
 
         // Get specific mod list
-        app.MapGet("/api/mod_list/{name}", (string name, ModService modService) =>
+        app.MapGet("/api/mod_list/{name?}", (string? name, ModService modService) =>
         {
-            var list = modService.LoadList(name);
-            return Results.Json(list.Mods);
+            try
+            {
+                ModList list;
+                if (string.IsNullOrEmpty(name))
+                {
+                    list = modService.GetDefaultList();
+                }
+                else
+                {
+                    list = modService.LoadList(name);
+                }
+                return Results.Json(list.Mods);
+            }
+            catch (FileNotFoundException)
+            {
+                return Results.NotFound(new { error = "List not found" });
+            }
+            catch (Exception ex)
+            {
+                return Results.BadRequest(new { error = $"Error loading list: {ex.Message}" });
+            }
         });
 
         // Create new mod list
@@ -109,8 +129,26 @@ public static class RouteExtensions
             if (body == null || !body.TryGetValue("name", out var listName) || string.IsNullOrWhiteSpace(listName))
                 return Results.BadRequest(new { error = "Missing or invalid list name" });
 
-            modService.CreateNewList(listName.Trim());
-            return Results.Ok(new { message = $"List '{listName}' created successfully" });
+            try
+            {
+                modService.CreateNewList(listName.Trim());
+                
+                var createdList = modService.LoadList(listName.Trim());
+                var sptVersion = createdList.SelectedSptVersion ?? "unknown";
+                
+                return Results.Ok(new { 
+                    message = $"List '{listName}' created successfully",
+                    sptVersion = sptVersion
+                });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Results.BadRequest(new { error = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return Results.BadRequest(new { error = $"Error creating list: {ex.Message}" });
+            }
         });
 
         // Rename mod list
@@ -144,8 +182,15 @@ public static class RouteExtensions
         // Get SPT version for list
         app.MapGet("/api/mod_list/{name}/spt_version", (string name, ModService modService) =>
         {
-            var sptVersion = modService.GetSelectedSptVersion(name);
-            return Results.Json(new { selectedSptVersion = sptVersion });
+            try
+            {
+                var sptVersion = modService.GetSelectedSptVersion(name);
+                return Results.Json(new { selectedSptVersion = sptVersion });
+            }
+            catch (FileNotFoundException)
+            {
+                return Results.NotFound(new { error = "List not found" });
+            }
         });
 
         // Update SPT version for list
@@ -155,11 +200,18 @@ public static class RouteExtensions
             if (body == null || !body.TryGetValue("sptVersion", out var sptVersion) || string.IsNullOrWhiteSpace(sptVersion))
                 return Results.BadRequest(new { error = "Missing or invalid SPT version" });
 
-            var success = modService.UpdateSelectedSptVersion(name, sptVersion);
-            if (!success)
-                return Results.BadRequest(new { error = "Error updating SPT version" });
+            try
+            {
+                var success = modService.UpdateSelectedSptVersion(name, sptVersion);
+                if (!success)
+                    return Results.BadRequest(new { error = "Error updating SPT version" });
 
-            return Results.Ok(new { message = $"SPT version updated to '{sptVersion}'" });
+                return Results.Ok(new { message = $"SPT version updated to '{sptVersion}'" });
+            }
+            catch (FileNotFoundException)
+            {
+                return Results.NotFound(new { error = "List not found" });
+            }
         });
 
         return app;
@@ -175,11 +227,24 @@ public static class RouteExtensions
             if (body == null || !body.TryGetValue("url", out var url) || string.IsNullOrWhiteSpace(url))
                 return Results.BadRequest(new { error = "Missing or invalid URL" });
 
-            var (success, message, mod) = await modService.AddModToListAsync(listName, url);
-            if (!success)
-                return Results.BadRequest(new { error = message });
+            try
+            {
+                var existingList = modService.LoadList(listName);
+                
+                var (success, message, mod) = await modService.AddModToListAsync(listName, url);
+                if (!success)
+                    return Results.BadRequest(new { error = message });
 
-            return Results.Ok(new { message, mod });
+                return Results.Ok(new { message, mod });
+            }
+            catch (FileNotFoundException)
+            {
+                return Results.NotFound(new { error = $"List '{listName}' not found" });
+            }
+            catch (Exception ex)
+            {
+                return Results.BadRequest(new { error = $"Error: {ex.Message}" });
+            }
         });
 
         // Remove mod from list with optional file deletion
@@ -187,39 +252,53 @@ public static class RouteExtensions
         {
             var deleteFiles = context.Request.Query["deleteFiles"].FirstOrDefault()?.ToLower() == "true";
             
-            var list = modService.LoadList(listName);
-            var mod = list.Mods.FirstOrDefault(m => m.Id == id);
-            if (mod == null)
-                return Results.NotFound(new { error = "Mod not found" });
-
-            var removed = modService.RemoveModFromList(listName, id);
-            if (!removed)
-                return Results.BadRequest(new { error = "Error removing mod from list" });
-
-            bool filesRemoved = false;
-            if (deleteFiles)
+            try
             {
-                filesRemoved = modService.RemoveModFromInstallation(id, mod.Name);
-            }
+                var list = modService.LoadList(listName);
+                var mod = list.Mods.FirstOrDefault(m => m.Id == id);
+                if (mod == null)
+                    return Results.NotFound(new { error = "Mod not found" });
 
-            return Results.Ok(new { 
-                message = $"Mod removed{(deleteFiles && filesRemoved ? " and installation files deleted" : "")}", 
-                mod,
-                filesRemoved = deleteFiles && filesRemoved
-            });
+                var removed = modService.RemoveModFromList(listName, id);
+                if (!removed)
+                    return Results.BadRequest(new { error = "Error removing mod from list" });
+
+                bool filesRemoved = false;
+                if (deleteFiles)
+                {
+                    filesRemoved = modService.RemoveModFromInstallation(id, mod.Name);
+                }
+
+                return Results.Ok(new { 
+                    message = $"Mod removed{(deleteFiles && filesRemoved ? " and installation files deleted" : "")}", 
+                    mod,
+                    filesRemoved = deleteFiles && filesRemoved
+                });
+            }
+            catch (FileNotFoundException)
+            {
+                return Results.NotFound(new { error = "List not found" });
+            }
         });
 
         // Check if mod is installed
         app.MapGet("/api/mod_list/{listName}/is_installed/{modId}", (string listName, int modId, ModService modService) =>
         {
-            var list = modService.LoadList(listName);
-            var mod = list.Mods.FirstOrDefault(m => m.Id == modId);
-            
-            if (mod == null)
-                return Results.Json(new { installed = false });
+            try
+            {
+                var list = modService.LoadList(listName);
+                var mod = list.Mods.FirstOrDefault(m => m.Id == modId);
+                
+                if (mod == null)
+                    return Results.Json(new { installed = false });
 
-            var isInstalled = modService.IsModInstalled(modId, mod.Name);
-            return Results.Json(new { installed = isInstalled });
+                var isInstalled = modService.IsModInstalled(modId, mod.Name);
+                return Results.Json(new { installed = isInstalled });
+            }
+            catch (FileNotFoundException)
+            {
+                return Results.NotFound(new { error = "List not found" });
+            }
         });
 
         // Download and extract a mod
@@ -228,14 +307,43 @@ public static class RouteExtensions
             try
             {
                 var result = await modService.DownloadAndExtractModAsync(listName, modId);
-                if (!result.Success)
-                    return Results.BadRequest(new { error = result.Message });
-
-                return Results.Ok(new { message = result.Message });
+                
+                if (result.requiresUserChoice)
+                {
+                    return Results.Ok(new { 
+                        success = false,
+                        message = result.Message,
+                        requiresUserChoice = result.requiresUserChoice,
+                        TempExtractPath = result.TempExtractPath,
+                        ModName = result.ModName
+                    });
+                }
+                else if (!result.Success)
+                {
+                    return Results.BadRequest(new { 
+                        success = false,
+                        error = result.Message 
+                    });
+                }
+                else
+                {
+                    return Results.Ok(new { 
+                        success = true,
+                        message = result.Message,
+                        ModName = result.ModName
+                    });
+                }
+            }
+            catch (FileNotFoundException)
+            {
+                return Results.NotFound(new { error = "List not found" });
             }
             catch (Exception ex)
             {
-                return Results.BadRequest(new { error = $"Download error: {ex.Message}" });
+                return Results.BadRequest(new { 
+                    success = false,
+                    error = $"Download error: {ex.Message}" 
+                });
             }
         });
 
@@ -247,27 +355,86 @@ public static class RouteExtensions
                 var results = await modService.DownloadAllModsAsync(listName);
                 return Results.Json(results);
             }
+            catch (FileNotFoundException)
+            {
+                return Results.NotFound(new { error = "List not found" });
+            }
             catch (Exception ex)
             {
                 return Results.BadRequest(new { error = $"Download error: {ex.Message}" });
             }
         });
 
+        app.MapPost("/api/mod_list/{listName}/complete_installation", async (string listName, ModService modService, HttpContext context) =>
+        {
+            var body = await context.Request.ReadFromJsonAsync<Dictionary<string, object>>();
+            if (body == null || 
+                !body.TryGetValue("modName", out var modNameObj) || 
+                !body.TryGetValue("tempExtractPath", out var tempExtractPathObj) ||
+                !body.TryGetValue("installAsServerMod", out var installAsServerModObj))
+            {
+                return Results.BadRequest(new { error = "Missing required parameters" });
+            }
+
+            var modName = modNameObj?.ToString();
+            var tempExtractPath = tempExtractPathObj?.ToString();
+            var installAsServerMod = bool.Parse(installAsServerModObj?.ToString() ?? "false");
+
+            if (string.IsNullOrEmpty(modName) || string.IsNullOrEmpty(tempExtractPath))
+            {
+                return Results.BadRequest(new { error = "Invalid parameters" });
+            }
+
+            try
+            {
+                var success = modService.CompleteModInstallation(modName, tempExtractPath, installAsServerMod);
+                
+                if (success)
+                {
+                    return Results.Ok(new { 
+                        message = $"Mod '{modName}' installed successfully as {(installAsServerMod ? "server" : "client")} mod" 
+                    });
+                }
+                else
+                {
+                    return Results.BadRequest(new { error = "Failed to complete installation" });
+                }
+            }
+            catch (Exception ex)
+            {
+                return Results.BadRequest(new { error = $"Installation error: {ex.Message}" });
+            }
+        });
+
         // Check updates for all mods in list
         app.MapGet("/api/mod_list/{name}/check_updates", async (string name, ModService modService) =>
         {
-            var updatedMods = await modService.CheckModUpdatesAsync(name);
-            return Results.Json(updatedMods);
+            try
+            {
+                var updatedMods = await modService.CheckModUpdatesAsync(name);
+                return Results.Json(updatedMods);
+            }
+            catch (FileNotFoundException)
+            {
+                return Results.NotFound(new { error = "List not found" });
+            }
         });
 
         // Check update for specific mod
         app.MapGet("/api/mod_list/{listName}/check_update/{modId}", async (string listName, int modId, ModService modService) =>
         {
-            var updatedMod = await modService.CheckSingleModUpdateAsync(listName, modId);
-            if (updatedMod == null)
-                return Results.NotFound(new { message = "No update available" });
-            
-            return Results.Json(updatedMod);
+            try
+            {
+                var updatedMod = await modService.CheckSingleModUpdateAsync(listName, modId);
+                if (updatedMod == null)
+                    return Results.NotFound(new { message = "No update available" });
+                
+                return Results.Json(updatedMod);
+            }
+            catch (FileNotFoundException)
+            {
+                return Results.NotFound(new { error = "List not found" });
+            }
         });
 
         // Force update and download a mod
@@ -296,6 +463,10 @@ public static class RouteExtensions
                     message = $"Mod '{updatedMod.Name}' updated and downloaded successfully!",
                     mod = updatedMod
                 });
+            }
+            catch (FileNotFoundException)
+            {
+                return Results.NotFound(new { error = "List not found" });
             }
             catch (Exception ex)
             {

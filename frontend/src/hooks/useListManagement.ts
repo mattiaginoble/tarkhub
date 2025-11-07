@@ -1,4 +1,3 @@
-// useListManagement.ts
 import { useCallback } from "react";
 import { useModal } from "../components/ModalContext";
 import { useModUpdates } from "./useModUpdates";
@@ -42,7 +41,7 @@ export function useListManagement({
 
   const showTimedModal = useCallback(
     (options: {
-      type: "success" | "error" | "warning";
+      type: "success" | "error" | "warning" | "info";
       title: string;
       message: string;
       duration?: number;
@@ -51,6 +50,7 @@ export function useListManagement({
         success: 3000,
         warning: 4000,
         error: 5000,
+        info: 3000,
       };
 
       showModal({
@@ -272,13 +272,34 @@ export function useListManagement({
         if (result.success) {
           await refetchModLists();
 
+          await new Promise((resolve) => setTimeout(resolve, 300));
+
+          await refetchModLists();
+
           const availableLists = modLists.filter(
             (name) => name !== currentList
           );
+
           if (availableLists.length > 0) {
             handleListChange(availableLists[0]);
           } else {
             handleListChange("");
+            navigate("/mod");
+
+            setTimeout(async () => {
+              await refetchModLists();
+              const updatedLists = modLists;
+
+              if (updatedLists.length > 0) {
+                handleListChange(updatedLists[0]);
+                showTimedModal({
+                  type: "info",
+                  title: "Default List Loaded",
+                  message: `Automatically loaded "${updatedLists[0]}" list`,
+                  duration: 2000,
+                });
+              }
+            }, 500);
           }
 
           showTimedModal({
@@ -299,6 +320,7 @@ export function useListManagement({
     currentList,
     modLists,
     handleListChange,
+    navigate,
     showConfirmation,
     refetchModLists,
   ]);

@@ -5,7 +5,7 @@ import { useModal } from "../components/ModalContext";
 interface SptVersionSelectorProps {
   currentList: string;
   sptVersions: SptVersion[];
-  selectedSptVersion: string;
+  selectedSptVersion: string | null;
   handleSptVersionChange: (e: React.ChangeEvent<HTMLSelectElement>) => void;
 }
 
@@ -18,6 +18,10 @@ const SptVersionSelector: React.FC<SptVersionSelectorProps> = ({
   const { showModal } = useModal();
 
   if (!currentList) return null;
+
+  const displayValue =
+    selectedSptVersion ||
+    (sptVersions.length > 0 ? sptVersions[0].version : "");
 
   const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const newVersion = e.target.value;
@@ -34,7 +38,7 @@ const SptVersionSelector: React.FC<SptVersionSelectorProps> = ({
   return (
     <div className="version-row">
       <select
-        value={selectedSptVersion}
+        value={displayValue}
         onChange={handleChange}
         className="version-input"
         aria-label="Select SPT version"

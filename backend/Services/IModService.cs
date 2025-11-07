@@ -27,6 +27,7 @@ public interface IModService
     Task<List<ModDownloadResult>> DownloadAllModsAsync(string listName, bool forceDownload = false);
     bool IsModInstalled(int modId, string modName);
     bool RemoveModFromInstallation(int modId, string modName);
+    bool CompleteModInstallation(string modName, string tempExtractPath, bool installAsServerMod);
     
     // Mod updates
     Task<List<Mod>> CheckModUpdatesAsync(string listName);
@@ -45,4 +46,13 @@ public interface IModService
     string? ExtractModIdFromUrl(string url);
     Task<Mod?> FetchModDataAsync(string modId);
     bool ValidateSptInstallation();
+}
+
+public class ModDownloadResult
+{
+    public bool Success { get; set; }
+    public string Message { get; set; } = string.Empty;
+    public string? ModName { get; set; }
+    public bool requiresUserChoice { get; set; }
+    public string? TempExtractPath { get; set; }
 }

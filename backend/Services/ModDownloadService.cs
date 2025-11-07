@@ -8,11 +8,11 @@ namespace ForgeModApi.Services;
 
 public partial class ModService
 {
-    #region Mod Download and Installation
+    #region Mod Download and Installation - Simplified Logic
     
     public async Task<ModDownloadResult> DownloadAndExtractModAsync(string listName, int modId, bool forceDownload = false)
     {
-        string tempDir = null;
+        string? tempDir = null;
         try
         {
             var list = LoadList(listName);
@@ -25,22 +25,11 @@ public partial class ModService
 
             if (!Directory.Exists(_sptServerDir))
             {
-                try
-                {
-                    Directory.CreateDirectory(_sptServerDir);
-                    _logger.LogInformation("Created SPT server directory: {ServerDir}", _sptServerDir);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Failed to create SPT server directory");
-                    return new ModDownloadResult { 
-                        Success = false, 
-                        Message = $"Cannot create SPT server directory: {ex.Message}" 
-                    };
-                }
+                Directory.CreateDirectory(_sptServerDir);
+                _logger.LogInformation("Created SPT server directory: {ServerDir}", _sptServerDir);
             }
 
-            if (!forceDownload && IsModInstalled(modId, mod.Name))
+            if (!forceDownload && IsModInstalled(mod.Id, mod.Name))
             {
                 _logger.LogInformation("Mod {ModName} already installed, skipping download", mod.Name);
                 return new ModDownloadResult { 
@@ -87,46 +76,46 @@ public partial class ModService
 
             _logger.LogInformation("Download completed: {FileSize} bytes", new FileInfo(tempFilePath).Length);
 
-            try
-            {
-                var extractDir = Path.Combine(tempDir, "extract");
-                Directory.CreateDirectory(extractDir);
+            var extractDir = Path.Combine(tempDir, "extract");
+            Directory.CreateDirectory(extractDir);
 
-                var fileExtension = Path.GetExtension(tempFilePath).ToLower();
+            await ExtractArchiveFile(tempFilePath, extractDir);
+
+            var hasSPT = Directory.Exists(Path.Combine(extractDir, "SPT"));
+            var hasBepInEx = Directory.Exists(Path.Combine(extractDir, "BepInEx"));
+            
+            _logger.LogInformation("Mod structure - SPT: {HasSPT}, BepInEx: {HasBepInEx}", hasSPT, hasBepInEx);
+
+            if (hasSPT || hasBepInEx)
+            {
+                RenameModFolders(extractDir, mod.Name);
                 
-                switch (fileExtension)
-                {
-                    case ".zip":
-                        ZipFile.ExtractToDirectory(tempFilePath, extractDir, true);
-                        break;
-                    
-                    case ".7z":
-                        await Extract7zFileAsync(tempFilePath, extractDir);
-                        break;
-                    
-                    default:
-                        await ExtractArchiveFileAsync(tempFilePath, extractDir);
-                        break;
-                }
-
-                var userModsDir = Path.Combine(_sptServerDir, "SPT", "user", "mods");
-                if (!Directory.Exists(userModsDir))
-                    Directory.CreateDirectory(userModsDir);
-
-                ProcessModExtraction(extractDir, mod);
-                _logger.LogInformation("Mod '{ModName}' installed successfully", mod.Name);
+                CopyDirectoryContents(extractDir, _sptServerDir);
+                _logger.LogInformation("Mod '{ModName}' installed with standard structure", mod.Name);
+                
+                return new ModDownloadResult { 
+                    Success = true, 
+                    Message = $"Mod '{mod.Name}' downloaded and installed successfully!",
+                    ModName = mod.Name
+                };
             }
-            catch (Exception ex)
+            else
             {
-                _logger.LogError(ex, "Extraction error");
-                return new ModDownloadResult { Success = false, Message = $"Extraction error: {ex.Message}" };
-            }
+                var pendingDir = Path.Combine(_sptServerDir, "pending_installation", GetSafeFileName(mod.Name));
+                SafeDeleteDirectory(pendingDir);
+                Directory.CreateDirectory(pendingDir);
+                CopyDirectoryContents(extractDir, pendingDir);
+                
+                _logger.LogWarning("Mod '{ModName}' has non-standard structure, pending user choice", mod.Name);
 
-            return new ModDownloadResult { 
-                Success = true, 
-                Message = $"Mod '{mod.Name}' downloaded and installed successfully!",
-                ModName = mod.Name
-            };
+                return new ModDownloadResult { 
+                    Success = true,
+                    Message = "MOD_STRUCTURE_CHOICE_NEEDED",
+                    ModName = mod.Name,
+                    requiresUserChoice = true,
+                    TempExtractPath = pendingDir
+                };  
+            }
         }
         catch (Exception ex)
         {
@@ -149,207 +138,182 @@ public partial class ModService
         }
     }
 
-    private async Task Extract7zFileAsync(string archivePath, string extractDir)
+    private async Task ExtractArchiveFile(string archivePath, string extractDir)
     {
-        await Task.Run(() =>
-        {
-            using (var archive = ArchiveFactory.Open(archivePath))
-            {
-                foreach (var entry in archive.Entries)
-                {
-                    if (!entry.IsDirectory)
-                    {
-                        string entryPath = Path.Combine(extractDir, entry.Key);
-                        string entryDir = Path.GetDirectoryName(entryPath);
-                        
-                        if (!string.IsNullOrEmpty(entryDir) && !Directory.Exists(entryDir))
-                        {
-                            Directory.CreateDirectory(entryDir);
-                        }
-
-                        entry.WriteToFile(entryPath);
-                    }
-                }
-            }
-        });
-    }
-
-    private async Task ExtractArchiveFileAsync(string archivePath, string extractDir)
-    {
-        await Task.Run(() =>
-        {
-            using (var archive = ArchiveFactory.Open(archivePath))
-            {
-                foreach (var entry in archive.Entries)
-                {
-                    if (!entry.IsDirectory)
-                    {
-                        string entryPath = Path.Combine(extractDir, entry.Key);
-                        string entryDir = Path.GetDirectoryName(entryPath);
-                        
-                        if (!string.IsNullOrEmpty(entryDir) && !Directory.Exists(entryDir))
-                        {
-                            Directory.CreateDirectory(entryDir);
-                        }
-
-                        entry.WriteToFile(entryPath);
-                    }
-                }
-            }
-        });
-    }
-
-    private void ProcessModExtraction(string extractDir, Mod mod)
-    {
-        if (!ValidateSptDirectoryStructure())
-        {
-            throw new InvalidOperationException("SPT server directory structure is invalid or incomplete");
-        }
-
-        var normalizedModName = GetSafeFileName(mod.Name);
-        _logger.LogInformation("Processing mod extraction for: {ModName}", mod.Name);
-
-        var topLevelDirs = Directory.GetDirectories(extractDir);
-
-        foreach (var topDir in topLevelDirs)
-        {
-            var bepinexPath = Path.Combine(topDir, "BepInEx", "plugins");
-            if (Directory.Exists(bepinexPath))
-            {
-                _logger.LogInformation("Found BepInEx/plugins in: {TopDir}", Path.GetFileName(topDir));
-                ProcessBepInExPlugins(bepinexPath, mod);
-                return;
-            }
-
-            var dllFiles = Directory.GetFiles(topDir, "*.dll", SearchOption.TopDirectoryOnly);
-            if (dllFiles.Length > 0)
-            {
-                _logger.LogInformation("Found DLL files in: {TopDir}", Path.GetFileName(topDir));
-                var targetPluginDir = Path.Combine(_sptServerDir, "BepInEx", "plugins", normalizedModName);
-                SafeDeleteDirectory(targetPluginDir);
-                Directory.CreateDirectory(targetPluginDir);
-                
-                foreach (var dllFile in dllFiles)
-                {
-                    var fileName = Path.GetFileName(dllFile);
-                    var targetFile = Path.Combine(targetPluginDir, fileName);
-                    File.Copy(dllFile, targetFile, true);
-                }
-                return;
-            }
-        }
-
-        var actualModDir = FindActualModDirectory(extractDir);
+        var fileExtension = Path.GetExtension(archivePath).ToLower();
         
-        if (actualModDir != null)
+        switch (fileExtension)
         {
-            if (actualModDir.Contains("BepInEx") && actualModDir.Contains("plugins"))
-            {
-                ProcessBepInExPlugins(actualModDir, mod);
-            }
-            else
-            {
-                var targetPluginDir = Path.Combine(_sptServerDir, "BepInEx", "plugins", normalizedModName);
-                SafeDeleteDirectory(targetPluginDir);
-                Directory.CreateDirectory(targetPluginDir);
-                
-                var dllFiles = Directory.GetFiles(actualModDir, "*.dll");
-                foreach (var dllFile in dllFiles)
-                {
-                    var fileName = Path.GetFileName(dllFile);
-                    var targetFile = Path.Combine(targetPluginDir, fileName);
-                    File.Copy(dllFile, targetFile, true);
-                }
-            }
-            return;
-        }
-
-        _logger.LogWarning("No mod structure found, using fallback method");
-        CopyRemainingFilesFallback(extractDir, normalizedModName);
-    }
-
-    private void CopyRemainingFilesFallback(string extractDir, string normalizedModName)
-    {
-        var allFiles = Directory.GetFiles(extractDir, "*.dll", SearchOption.AllDirectories);
-        
-        if (allFiles.Length == 0)
-        {
-            _logger.LogWarning("No DLL files found in extraction directory");
-            return;
-        }
-
-        var targetPluginDir = Path.Combine(_sptServerDir, "BepInEx", "plugins", normalizedModName);
-        SafeDeleteDirectory(targetPluginDir);
-        Directory.CreateDirectory(targetPluginDir);
-
-        foreach (var file in allFiles)
-        {
-            try
-            {
-                var fileName = file.Split(Path.DirectorySeparatorChar).Last();
-                
-                if (fileName.Contains('\\'))
-                {
-                    fileName = fileName.Split('\\').Last();
-                }
-                
-                var destPath = Path.Combine(targetPluginDir, fileName);
-                File.Copy(file, destPath, true);
-                _logger.LogInformation("Copied DLL: {FileName}", fileName);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning("Failed to copy DLL {File}: {Message}", file, ex.Message);
-            }
-        }
-    }
-
-    private void ProcessBepInExPlugins(string bepinexPluginsPath, Mod mod)
-    {
-        var normalizedPluginName = GetSafeFileName(mod.Name);
-        var targetPluginDir = Path.Combine(_sptServerDir, "BepInEx", "plugins", normalizedPluginName);
-
-        var pluginDirs = Directory.GetDirectories(bepinexPluginsPath);
-        foreach (var pluginDir in pluginDirs)
-        {
-            var dirName = Path.GetFileName(pluginDir);
-            var newPluginDir = Path.Combine(targetPluginDir, dirName);
-
-            if (Directory.Exists(newPluginDir))
-                Directory.Delete(newPluginDir, true);
-
-            Directory.CreateDirectory(Path.GetDirectoryName(newPluginDir)!);
-            CopyDirectory(pluginDir, newPluginDir, true);
-        }
-        
-        var pluginFiles = Directory.GetFiles(bepinexPluginsPath, "*.dll");
-        if (pluginFiles.Length > 0)
-        {
-            if (!Directory.Exists(targetPluginDir))
-            {
-                Directory.CreateDirectory(targetPluginDir);
-            }
-
-            foreach (var pluginFile in pluginFiles)
-            {
-                var fileName = Path.GetFileName(pluginFile);
-                var newPluginFile = Path.Combine(targetPluginDir, fileName);
-                File.Copy(pluginFile, newPluginFile, true);
-            }
-        }
-
-        var otherFiles = Directory.GetFiles(bepinexPluginsPath)
-            .Where(f => !f.EndsWith(".dll") && !f.EndsWith(".tmp"))
-            .ToArray();
+            case ".zip":
+                ZipFile.ExtractToDirectory(archivePath, extractDir, true);
+                break;
             
-        if (otherFiles.Length > 0)
+            case ".7z":
+                await Extract7zFile(archivePath, extractDir);
+                break;
+            
+            default:
+                await ExtractWithSharpCompress(archivePath, extractDir);
+                break;
+        }
+    }
+
+    private async Task Extract7zFile(string archivePath, string extractDir)
+    {
+        await Task.Run(() =>
         {
-            foreach (var otherFile in otherFiles)
+            using (var archive = ArchiveFactory.Open(archivePath))
             {
-                var fileName = Path.GetFileName(otherFile);
-                var newFile = Path.Combine(targetPluginDir, fileName);
-                File.Copy(otherFile, newFile, true);
+                foreach (var entry in archive.Entries)
+                {
+                    if (!entry.IsDirectory)
+                    {
+                        string entryPath = Path.Combine(extractDir, entry.Key);
+                        string? entryDir = Path.GetDirectoryName(entryPath);
+                        
+                        if (!string.IsNullOrEmpty(entryDir) && !Directory.Exists(entryDir))
+                        {
+                            Directory.CreateDirectory(entryDir);
+                        }
+
+                        entry.WriteToFile(entryPath);
+                    }
+                }
             }
+        });
+    }
+
+    private async Task ExtractWithSharpCompress(string archivePath, string extractDir)
+    {
+        await Task.Run(() =>
+        {
+            using (var archive = ArchiveFactory.Open(archivePath))
+            {
+                foreach (var entry in archive.Entries)
+                {
+                    if (!entry.IsDirectory)
+                    {
+                        string entryPath = Path.Combine(extractDir, entry.Key);
+                        string? entryDir = Path.GetDirectoryName(entryPath);
+                        
+                        if (!string.IsNullOrEmpty(entryDir) && !Directory.Exists(entryDir))
+                        {
+                            Directory.CreateDirectory(entryDir);
+                        }
+
+                        entry.WriteToFile(entryPath);
+                    }
+                }
+            }
+        });
+    }
+
+    private void CopyDirectoryContents(string sourceDir, string targetDir)
+    {
+        if (!Directory.Exists(targetDir))
+            Directory.CreateDirectory(targetDir);
+
+        foreach (var dir in Directory.GetDirectories(sourceDir))
+        {
+            var dirName = Path.GetFileName(dir);
+            if (!string.IsNullOrEmpty(dirName))
+            {
+                var destDir = Path.Combine(targetDir, dirName);
+                CopyDirectory(dir, destDir, true);
+            }
+        }
+
+        foreach (var file in Directory.GetFiles(sourceDir))
+        {
+            var fileName = Path.GetFileName(file);
+            if (!string.IsNullOrEmpty(fileName))
+            {
+                var destFile = Path.Combine(targetDir, fileName);
+                File.Copy(file, destFile, true);
+            }
+        }
+    }
+
+    private void RenameModFolders(string extractDir, string modName)
+    {
+        try
+        {
+            var safeModName = GetSafeFileName(modName);
+            
+            var bepinexPluginsPath = Path.Combine(extractDir, "BepInEx", "plugins");
+            if (Directory.Exists(bepinexPluginsPath))
+            {
+                RenameSubdirectories(bepinexPluginsPath, safeModName);
+            }
+
+            var sptModsPath = Path.Combine(extractDir, "SPT", "user", "mods");
+            if (Directory.Exists(sptModsPath))
+            {
+                RenameSubdirectories(sptModsPath, safeModName);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Error renaming mod folders for {ModName}, continuing with original structure", modName);
+        }
+    }
+
+    private void RenameSubdirectories(string parentPath, string newName)
+    {
+        try
+        {
+            var subDirs = Directory.GetDirectories(parentPath);
+            if (subDirs.Length == 1)
+            {
+                var singleDir = subDirs[0];
+                var dirName = Path.GetFileName(singleDir);
+                
+                if (!string.Equals(dirName, newName, StringComparison.OrdinalIgnoreCase))
+                {
+                    var newPath = Path.Combine(parentPath, newName);
+                    
+                    if (Directory.Exists(newPath))
+                    {
+                        Directory.Delete(newPath, true);
+                    }
+                    
+                    Directory.Move(singleDir, newPath);
+                    _logger.LogInformation("Renamed mod folder: {OldName} -> {NewName}", dirName, newName);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Error renaming subdirectories in {ParentPath}", parentPath);
+        }
+    }
+
+    public bool CompleteModInstallation(string modName, string tempExtractPath, bool installAsServerMod)
+    {
+        try
+        {
+            var targetBaseDir = installAsServerMod 
+                ? Path.Combine(_sptServerDir, "SPT", "user", "mods", GetSafeFileName(modName))
+                : Path.Combine(_sptServerDir, "BepInEx", "plugins", GetSafeFileName(modName));
+
+            var parentDir = Path.GetDirectoryName(targetBaseDir);
+            if (!string.IsNullOrEmpty(parentDir) && !Directory.Exists(parentDir))
+            {
+                Directory.CreateDirectory(parentDir);
+            }
+
+            SafeDeleteDirectory(targetBaseDir);
+            CopyDirectoryContents(tempExtractPath, targetBaseDir);
+            
+            SafeDeleteDirectory(tempExtractPath);
+            
+            _logger.LogInformation("Mod '{ModName}' installed as {ModType} mod", modName, installAsServerMod ? "server" : "client");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error completing mod installation for {ModName}", modName);
+            return false;
         }
     }
 
@@ -383,21 +347,13 @@ public partial class ModService
     {
         var normalizedModName = GetSafeFileName(modName);
         
-        var sptModsDir = Path.Combine(_sptServerDir, "SPT", "user", "mods");
+        var sptModsDir = Path.Combine(_sptServerDir, "SPT", "user", "mods", normalizedModName);
         if (Directory.Exists(sptModsDir))
-        {
-            var modDir = Path.Combine(sptModsDir, normalizedModName);
-            if (Directory.Exists(modDir))
-                return true;
-        }
+            return true;
 
-        var bepinexPluginsDir = Path.Combine(_sptServerDir, "BepInEx", "plugins");
+        var bepinexPluginsDir = Path.Combine(_sptServerDir, "BepInEx", "plugins", normalizedModName);
         if (Directory.Exists(bepinexPluginsDir))
-        {
-            var pluginDir = Path.Combine(bepinexPluginsDir, normalizedModName);
-            if (Directory.Exists(pluginDir))
-                return true;
-        }
+            return true;
         
         return false;
     }
@@ -410,30 +366,17 @@ public partial class ModService
             var normalizedModName = GetSafeFileName(modName);
             var removed = false;
 
-            var sptModsDir = Path.Combine(_sptServerDir, "SPT", "user", "mods");
+            var sptModsDir = Path.Combine(_sptServerDir, "SPT", "user", "mods", normalizedModName);
             if (Directory.Exists(sptModsDir))
             {
-                var modDir = Path.Combine(sptModsDir, normalizedModName);
-                if (Directory.Exists(modDir))
-                {
-                    Directory.Delete(modDir, true);
-                    removed = true;
-                }
+                Directory.Delete(sptModsDir, true);
+                removed = true;
             }
 
-            var bepinexPluginsDir = Path.Combine(_sptServerDir, "BepInEx", "plugins");
+            var bepinexPluginsDir = Path.Combine(_sptServerDir, "BepInEx", "plugins", normalizedModName);
             if (Directory.Exists(bepinexPluginsDir))
             {
-                var pluginDir = Path.Combine(bepinexPluginsDir, normalizedModName);
-                if (Directory.Exists(pluginDir))
-                {
-                    Directory.Delete(pluginDir, true);
-                    removed = true;
-                }
-            }
-
-            if (RemoveModConfigFiles(modId, modName))
-            {
+                Directory.Delete(bepinexPluginsDir, true);
                 removed = true;
             }
 
@@ -448,148 +391,6 @@ public partial class ModService
         {
             _logger.LogError(ex, "Error removing mod");
             return false;
-        }
-    }
-
-    private bool RemoveModConfigFiles(int modId, string modName)
-    {
-        try
-        {
-            var removed = false;
-            var normalizedModName = GetSafeFileName(modName);
-
-            var configDirs = new[]
-            {
-                Path.Combine(_sptServerDir, "SPT", "user", "configs"),
-                Path.Combine(_sptServerDir, "BepInEx", "config"),
-                Path.Combine(_sptServerDir, "SPT", "Aki_Data", "Server", "configs")
-            };
-
-            foreach (var configDir in configDirs)
-            {
-                if (!Directory.Exists(configDir)) continue;
-
-                var configFiles = Directory.GetFiles(configDir, "*.json", SearchOption.AllDirectories)
-                    .Concat(Directory.GetFiles(configDir, "*.cfg", SearchOption.AllDirectories));
-
-                foreach (var configFile in configFiles)
-                {
-                    try
-                    {
-                        var content = File.ReadAllText(configFile);
-                        if (content.Contains(normalizedModName) || content.Contains(modId.ToString()))
-                        {
-                            File.Delete(configFile);
-                            removed = true;
-                        }
-                    }
-                    catch
-                    {
-                        // Ignore files that cannot be read
-                    }
-                }
-            }
-
-            return removed;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Error removing config files");
-            return false;
-        }
-    }
-
-    private bool ValidateSptDirectoryStructure()
-    {
-        try
-        {
-            var requiredDirs = new[]
-            {
-                Path.Combine(_sptServerDir, "SPT", "user", "mods"),
-                Path.Combine(_sptServerDir, "BepInEx", "plugins"),
-                Path.Combine(_sptServerDir, "SPT", "Aki_Data")
-            };
-
-            foreach (var dir in requiredDirs)
-            {
-                if (!Directory.Exists(dir))
-                {
-                    try
-                    {
-                        Directory.CreateDirectory(dir);
-                        _logger.LogInformation("Created missing directory: {Directory}", dir);
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogError(ex, "Failed to create directory: {Directory}", dir);
-                        return false;
-                    }
-                }
-            }
-            return true;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error validating SPT directory structure");
-            return false;
-        }
-    }
-
-    private string? FindActualModDirectory(string extractDir)
-    {
-        try
-        {
-            var allDirectories = Directory.GetDirectories(extractDir, "*", SearchOption.AllDirectories);
-
-            foreach (var dir in allDirectories)
-            {
-                var relativePath = GetRelativePath(extractDir, dir);
-
-                if (relativePath.Replace('\\', '/').EndsWith("BepInEx/plugins", StringComparison.OrdinalIgnoreCase) ||
-                    relativePath.Replace('\\', '/').Contains("BepInEx/plugins/", StringComparison.OrdinalIgnoreCase))
-                {
-                    var dllFiles = Directory.GetFiles(dir, "*.dll", SearchOption.TopDirectoryOnly);
-                    
-                    if (dllFiles.Length > 0)
-                    {
-                        return dir;
-                    }
-                }
-            }
-
-            foreach (var dir in allDirectories)
-            {
-                var dllFiles = Directory.GetFiles(dir, "*.dll", SearchOption.TopDirectoryOnly);
-                if (dllFiles.Length > 0)
-                {
-                    return dir;
-                }
-            }
-
-            return null;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error finding mod directory");
-            return null;
-        }
-    }
-
-    private string GetRelativePath(string fromPath, string toPath)
-    {
-        try
-        {
-            var fromUri = new Uri(fromPath + Path.DirectorySeparatorChar);
-            var toUri = new Uri(toPath + Path.DirectorySeparatorChar);
-            
-            var relativeUri = fromUri.MakeRelativeUri(toUri);
-            var relativePath = Uri.UnescapeDataString(relativeUri.ToString());
-            
-            return relativePath.Replace('/', Path.DirectorySeparatorChar).TrimEnd(Path.DirectorySeparatorChar);
-        }
-        catch
-        {
-            return toPath;
         }
     }
 
@@ -615,6 +416,7 @@ public partial class ModService
                 break;
             }
         }
-    }    
+    }
+    
     #endregion
 }

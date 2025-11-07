@@ -6,6 +6,7 @@ import SPTUpdateBanner from "./SPTUpdateBanner";
 import FikaUpdateBanner from "./FikaUpdateBanner";
 import ModList from "./ModList";
 import ServerStatus from "./ServerStatus";
+import { useModal } from "./ModalContext";
 
 interface ModManagerContentProps {
   listName?: string;
@@ -16,7 +17,15 @@ const ModManagerContent: React.FC<ModManagerContentProps> = ({
   listName,
   navigate,
 }) => {
-  const modManager = useModManager({ listName, navigate });
+  const { showModal, showConfirmation } = useModal();
+
+  const modManager = useModManager({
+    listName,
+    navigate,
+    showModal,
+    showConfirmation,
+  });
+
   const modListRef = useRef<any>();
 
   return (

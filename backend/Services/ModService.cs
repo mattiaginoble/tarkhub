@@ -88,6 +88,42 @@ public partial class ModService : IModService
     {
         return ValidateSptDirectoryStructure();
     }
+
+    private bool ValidateSptDirectoryStructure()
+    {
+        try
+        {
+            var requiredDirs = new[]
+            {
+                Path.Combine(_sptServerDir, "SPT", "user", "mods"),
+                Path.Combine(_sptServerDir, "BepInEx", "plugins"),
+                Path.Combine(_sptServerDir, "SPT", "Aki_Data")
+            };
+
+            foreach (var dir in requiredDirs)
+            {
+                if (!Directory.Exists(dir))
+                {
+                    try
+                    {
+                        Directory.CreateDirectory(dir);
+                        _logger.LogInformation("Created missing directory: {Directory}", dir);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Failed to create directory: {Directory}", dir);
+                        return false;
+                    }
+                }
+            }
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error validating SPT directory structure");
+            return false;
+        }
+    }
     #endregion
 
     #region API Throttling and Caching
@@ -299,7 +335,8 @@ public partial class ModService : IModService
     #region File System Utilities
     private string GetSafeFileName(string name)
     {
-        foreach (var c in Path.GetInvalidFileNameChars())
+        var invalidChars = Path.GetInvalidFileNameChars();
+        foreach (var c in invalidChars)
             name = name.Replace(c, '_');
         return name;
     }
@@ -321,7 +358,7 @@ public partial class ModService : IModService
         {
             var normalizedFile = Path.GetFullPath(file);
             var fileName = Path.GetFileName(normalizedFile);
-            var destFile = $"{destinationDir}/{fileName}";
+            var destFile = Path.Combine(destinationDir, fileName ?? "unknown");
             
             for (int i = 0; i < 3; i++)
             {
@@ -348,7 +385,7 @@ public partial class ModService : IModService
             {
                 var normalizedSubDir = Path.GetFullPath(subDir);
                 var dirName = Path.GetFileName(normalizedSubDir);
-                var destSubDir = $"{destinationDir}/{dirName}";
+                var destSubDir = Path.Combine(destinationDir, dirName ?? "unknown");
                 
                 CopyDirectory(normalizedSubDir, destSubDir, true);
             }
@@ -429,7 +466,8 @@ public partial class ModService : IModService
             if (File.Exists(versionFile))
             {
                 var version = File.ReadAllText(versionFile).Trim();
-                return version;
+                if (!string.IsNullOrEmpty(version) && version != "unknown")
+                    return version;
             }
         }
         catch (Exception ex)
@@ -437,7 +475,20 @@ public partial class ModService : IModService
             _logger.LogWarning(ex, "Error reading SPT version file");
         }
         
-        var envVersion = Environment.GetEnvironmentVariable("SPT_VERSION") ?? "unknown";
+        try
+        {
+            var sptVersions = GetSptVersionsAsync().GetAwaiter().GetResult();
+            if (sptVersions.Count > 0)
+            {
+                return sptVersions[0].Version;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Error getting SPT versions for fallback");
+        }
+        
+        var envVersion = Environment.GetEnvironmentVariable("SPT_VERSION") ?? "3.9.0";
         return envVersion;
     }
     #endregion

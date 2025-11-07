@@ -14,7 +14,6 @@ interface UseModCRUDProps {
   showModal: (options: any) => void;
   showConfirmation: (options: any) => void;
   updateInstalledStatusOnce?: () => Promise<void>;
-  checkModInstalled?: (modId: number) => Promise<boolean>;
 }
 
 const apiCall = async <T>(
@@ -36,6 +35,15 @@ const apiCall = async <T>(
   }
 };
 
+interface ModDownloadResponse {
+  success: boolean;
+  message?: string;
+  error?: string;
+  requiresUserChoice?: boolean;
+  TempExtractPath?: string;
+  ModName?: string;
+}
+
 export function useModCRUD({
   currentList,
   currentMods,
@@ -50,14 +58,80 @@ export function useModCRUD({
   showConfirmation,
   updateInstalledStatusOnce,
 }: UseModCRUDProps) {
+  const handleModStructureChoice = useCallback(
+    (modName: string, tempExtractPath: string, onComplete: () => void) => {
+      let choiceMade = false;
+
+      const completeInstallation = async (installAsServerMod: boolean) => {
+        if (choiceMade) return;
+        choiceMade = true;
+
+        const modType = installAsServerMod ? "Server" : "Client";
+
+        try {
+          const result = await apiCall(
+            `/api/mod_list/${encodeURIComponent(
+              currentList
+            )}/complete_installation`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                modName,
+                tempExtractPath,
+                installAsServerMod,
+              }),
+            }
+          );
+
+          if (result.success) {
+            showModal({
+              type: "success",
+              title: "Installazione Completata",
+              message: `Mod installata con successo come ${modType} Mod`,
+            });
+            onComplete();
+          } else {
+            console.error(
+              `❌ ${modType} mod installation failed:`,
+              result.error
+            );
+            showModal({
+              type: "error",
+              title: "Installazione Fallita",
+              message: result.error || "Installazione fallita",
+            });
+          }
+        } catch (error) {
+          console.error(`💥 Error completing ${modType} installation:`, error);
+          showModal({
+            type: "error",
+            title: "Installazione Fallita",
+            message: "Errore durante l'installazione",
+          });
+        }
+      };
+
+      showConfirmation({
+        title: "Scelta Installazione Mod",
+        message: `La mod "${modName}" non ha una struttura standard. Dove vuoi installarla?`,
+        cancelText: "Mod Server (SPT/user/mods)",
+        confirmText: "Mod Client (BepInEx/plugins)",
+        onConfirm: () => completeInstallation(false),
+        onCancel: () => completeInstallation(true),
+      });
+    },
+    [currentList, showModal, showConfirmation]
+  );
+
   const handleAddMod = useCallback(
     async (e: React.FormEvent<HTMLFormElement>) => {
       e.preventDefault();
       if (!modUrl.trim() || !currentList) {
         showModal({
           type: "warning",
-          title: "Empty URL",
-          message: "Please enter a mod URL",
+          title: "URL Vuoto",
+          message: "Inserisci un URL della mod",
         });
         return false;
       }
@@ -77,15 +151,15 @@ export function useModCRUD({
             if (prev.some((mod) => mod.id === result.data.mod.id)) {
               showModal({
                 type: "warning",
-                title: "Mod Already Exists",
-                message: `Mod "${result.data.mod.name}" is already in the list`,
+                title: "Mod Già Presente",
+                message: `La mod "${result.data.mod.name}" è già nella lista`,
               });
               return prev;
             }
             showModal({
               type: "success",
-              title: "Mod Added",
-              message: `Mod "${result.data.mod.name}" added successfully`,
+              title: "Mod Aggiunta",
+              message: `Mod "${result.data.mod.name}" aggiunta con successo`,
             });
             return [...prev, result.data.mod];
           });
@@ -94,8 +168,8 @@ export function useModCRUD({
         } else {
           showModal({
             type: "error",
-            title: "Add Mod Failed",
-            message: result.error || "Failed to add mod",
+            title: "Aggiunta Mod Fallita",
+            message: result.error || "Impossibile aggiungere la mod",
           });
           return false;
         }
@@ -103,8 +177,8 @@ export function useModCRUD({
         console.error("Add mod failed:", error);
         showModal({
           type: "error",
-          title: "Add Mod Failed",
-          message: "An error occurred while adding the mod",
+          title: "Aggiunta Mod Fallita",
+          message: "Errore durante l'aggiunta della mod",
         });
         return false;
       }
@@ -117,8 +191,8 @@ export function useModCRUD({
       if (!currentList) {
         showModal({
           type: "warning",
-          title: "No List Selected",
-          message: "Please select a list first",
+          title: "Nessuna Lista Selezionata",
+          message: "Seleziona prima una lista",
         });
         return;
       }
@@ -126,14 +200,16 @@ export function useModCRUD({
       const isInstalled = installedMods[id] || false;
 
       showConfirmation({
-        title: "Remove Mod",
-        message: `Remove "${modName}" from list?${
-          isInstalled ? " You can also choose to delete installed files." : ""
+        title: "Rimuovi Mod",
+        message: `Rimuovere "${modName}" dalla lista?${
+          isInstalled
+            ? " Puoi anche scegliere di eliminare i file installati."
+            : ""
         }`,
-        cancelText: "Cancel",
-        confirmText: "Remove from List",
+        cancelText: "Annulla",
+        confirmText: "Rimuovi dalla Lista",
         showDeleteOption: isInstalled,
-        deleteOptionText: "Also delete installed files",
+        deleteOptionText: "Elimina anche i file installati",
         onConfirm: async (deleteFiles?: string | boolean) => {
           const shouldDeleteFiles = Boolean(deleteFiles);
           const url = `/api/mod_list/${encodeURIComponent(
@@ -148,24 +224,24 @@ export function useModCRUD({
               setCurrentMods((prev) => prev.filter((mod) => mod.id !== id));
               showModal({
                 type: "success",
-                title: "Mod Removed",
-                message: `Mod "${modName}" removed successfully${
-                  shouldDeleteFiles ? " and files deleted" : ""
+                title: "Mod Rimossa",
+                message: `Mod "${modName}" rimossa con successo${
+                  shouldDeleteFiles ? " e file eliminati" : ""
                 }`,
               });
             } else {
               showModal({
                 type: "error",
-                title: "Remove Failed",
-                message: result.error || `Failed to remove "${modName}"`,
+                title: "Rimozione Fallita",
+                message: result.error || `Impossibile rimuovere "${modName}"`,
               });
             }
           } catch (error) {
             console.error("Remove mod failed:", error);
             showModal({
               type: "error",
-              title: "Remove Failed",
-              message: `An error occurred while removing "${modName}"`,
+              title: "Rimozione Fallita",
+              message: `Errore durante la rimozione di "${modName}"`,
             });
           }
         },
@@ -186,54 +262,77 @@ export function useModCRUD({
       if (!currentList) {
         showModal({
           type: "warning",
-          title: "No List Selected",
-          message: "Please select a list first",
+          title: "Nessuna Lista Selezionata",
+          message: "Seleziona prima una lista",
         });
         return false;
       }
 
       try {
-        const result = await apiCall(
+        const result = await apiCall<any>(
           `/api/mod_list/${encodeURIComponent(
             currentList
           )}/download_mod/${modId}`,
           { method: "POST" }
         );
 
-        if (result.success) {
+        if (
+          result.data?.requiresUserChoice === true &&
+          result.data.tempExtractPath
+        ) {
+          handleModStructureChoice(
+            result.data.modName || modName,
+            result.data.tempExtractPath,
+            () => {
+              setModInstalled(modId, true);
+              if (updateInstalledStatusOnce) {
+                setTimeout(() => {
+                  updateInstalledStatusOnce();
+                }, 500);
+              }
+            }
+          );
+          return false;
+        } else if (result.success && result.data?.success !== false) {
           setModInstalled(modId, true);
-
           if (updateInstalledStatusOnce) {
             setTimeout(() => {
               updateInstalledStatusOnce();
             }, 500);
           }
-
           showModal({
             type: "success",
-            title: "Download Complete",
-            message: `Mod "${modName}" downloaded successfully`,
+            title: "Download Completato",
+            message:
+              result.data?.message || `Mod "${modName}" scaricata con successo`,
           });
           return true;
         } else {
+          console.error("❌ Download failed:", result.error);
           showModal({
             type: "error",
-            title: "Download Failed",
-            message: result.error || `Failed to download "${modName}"`,
+            title: "Download Fallito",
+            message: result.error || `Impossibile scaricare "${modName}"`,
           });
           return false;
         }
       } catch (error) {
-        console.error("Download failed:", error);
+        console.error("💥 Download failed with exception:", error);
         showModal({
           type: "error",
-          title: "Download Failed",
-          message: `An error occurred while downloading "${modName}"`,
+          title: "Download Fallito",
+          message: `Errore durante il download di "${modName}"`,
         });
         return false;
       }
     },
-    [currentList, setModInstalled, showModal, updateInstalledStatusOnce]
+    [
+      currentList,
+      setModInstalled,
+      showModal,
+      updateInstalledStatusOnce,
+      handleModStructureChoice,
+    ]
   );
 
   const handleUpdateAndDownload = useCallback(
@@ -241,51 +340,69 @@ export function useModCRUD({
       if (!currentList) {
         showModal({
           type: "warning",
-          title: "No List Selected",
-          message: "Please select a list first",
+          title: "Nessuna Lista Selezionata",
+          message: "Seleziona prima una lista",
         });
         return;
       }
 
       showConfirmation({
-        title: "Force Update Mod",
-        message: `Force update "${modName}"? Existing version will be overwritten.`,
-        confirmText: "Update",
+        title: "Aggiorna Mod Forzatamente",
+        message: `Aggiornare forzatamente "${modName}"? La versione esistente verrà sovrascritta.`,
+        confirmText: "Aggiorna",
         onConfirm: async () => {
           try {
-            const result = await apiCall(
+            const result = await apiCall<ModDownloadResponse>(
               `/api/mod_list/${encodeURIComponent(
                 currentList
               )}/force_update/${modId}`,
               { method: "POST" }
             );
 
-            if (result.success) {
-              setModInstalled(modId, true);
-
-              if (updateInstalledStatusOnce) {
-                await updateInstalledStatusOnce();
+            if (
+              result.success ||
+              (result.data?.requiresUserChoice && result.data.TempExtractPath)
+            ) {
+              if (
+                result.data?.requiresUserChoice &&
+                result.data.TempExtractPath
+              ) {
+                handleModStructureChoice(
+                  modName,
+                  result.data.TempExtractPath,
+                  async () => {
+                    setModInstalled(modId, true);
+                    if (updateInstalledStatusOnce) {
+                      await updateInstalledStatusOnce();
+                    }
+                    await loadModsOfList(currentList);
+                  }
+                );
+              } else {
+                setModInstalled(modId, true);
+                if (updateInstalledStatusOnce) {
+                  await updateInstalledStatusOnce();
+                }
+                await loadModsOfList(currentList);
+                showModal({
+                  type: "success",
+                  title: "Aggiornamento Completato",
+                  message: `Mod "${modName}" aggiornata con successo`,
+                });
               }
-
-              await loadModsOfList(currentList);
-              showModal({
-                type: "success",
-                title: "Update Successful",
-                message: `Mod "${modName}" updated successfully`,
-              });
             } else {
               showModal({
                 type: "error",
-                title: "Update Failed",
-                message: result.error || `Failed to update "${modName}"`,
+                title: "Aggiornamento Fallita",
+                message: result.error || `Impossibile aggiornare "${modName}"`,
               });
             }
           } catch (error) {
             console.error("Update failed:", error);
             showModal({
               type: "error",
-              title: "Update Failed",
-              message: `An error occurred while updating "${modName}"`,
+              title: "Aggiornamento Fallita",
+              message: `Errore durante l'aggiornamento di "${modName}"`,
             });
           }
         },
@@ -298,6 +415,7 @@ export function useModCRUD({
       updateInstalledStatusOnce,
       showModal,
       showConfirmation,
+      handleModStructureChoice,
     ]
   );
 
