@@ -18,9 +18,12 @@ public partial class ModService
             return (false, "Mod not found or API error", null);
 
         var list = LoadList(listName);
+        
         if (list.Mods.Any(m => m.Id == mod.Id))
             return (true, "Mod already exists in list", mod);
 
+        mod.ModType = "unknown";
+        
         list.Mods.Add(mod);
         SaveList(list);
 

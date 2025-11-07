@@ -81,6 +81,14 @@ public partial class ModService
 
             await ExtractArchiveFile(tempFilePath, extractDir);
 
+            var modType = DetermineModType(extractDir);
+            if (modType != "unknown")
+            {
+                mod.ModType = modType;
+                SaveList(list);
+                _logger.LogInformation("Detected mod type for '{ModName}': {ModType}", mod.Name, modType);
+            }
+
             var hasSPT = Directory.Exists(Path.Combine(extractDir, "SPT"));
             var hasBepInEx = Directory.Exists(Path.Combine(extractDir, "BepInEx"));
             
@@ -135,6 +143,29 @@ public partial class ModService
                     _logger.LogWarning(ex, "Failed to clean up temporary directory: {TempDir}", tempDir);
                 }
             }
+        }
+    }
+
+    private string DetermineModType(string extractDir)
+    {
+        try
+        {
+            bool hasSPT = Directory.Exists(Path.Combine(extractDir, "SPT"));
+            bool hasBepInEx = Directory.Exists(Path.Combine(extractDir, "BepInEx"));
+
+            if (hasSPT && hasBepInEx)
+                return "both";
+            else if (hasSPT)
+                return "server";
+            else if (hasBepInEx)
+                return "client";
+            else
+                return "unknown";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Error determining mod type from directory structure");
+            return "unknown";
         }
     }
 
@@ -307,6 +338,9 @@ public partial class ModService
             
             SafeDeleteDirectory(tempExtractPath);
             
+            var modType = installAsServerMod ? "server" : "client";
+            UpdateModTypeInAllLists(modName, modType);
+            
             _logger.LogInformation("Mod '{ModName}' installed as {ModType} mod", modName, installAsServerMod ? "server" : "client");
             return true;
         }
@@ -314,6 +348,28 @@ public partial class ModService
         {
             _logger.LogError(ex, "Error completing mod installation for {ModName}", modName);
             return false;
+        }
+    }
+
+    private void UpdateModTypeInAllLists(string modName, string modType)
+    {
+        try
+        {
+            var allLists = LoadAllLists();
+            foreach (var list in allLists)
+            {
+                var mod = list.Mods.FirstOrDefault(m => m.Name == modName);
+                if (mod != null && mod.ModType == "unknown")
+                {
+                    mod.ModType = modType;
+                    SaveList(list);
+                    _logger.LogInformation("Updated mod type for '{ModName}' in list '{ListName}': {ModType}", modName, list.Name, modType);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Error updating mod type in lists for {ModName}", modName);
         }
     }
 

@@ -25,6 +25,7 @@ public class Mod
     public string DownloadUrl { get; set; } = "";
     public string ContentLength { get; set; } = "";
     public string LatestVersion { get; set; } = "";
+    public string ModType { get; set; } = "unknown";
     public bool UpdateAvailable => !string.IsNullOrEmpty(LatestVersion) && LatestVersion != Version;
 }
 
