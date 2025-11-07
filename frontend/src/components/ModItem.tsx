@@ -5,6 +5,9 @@ import {
   DownloadIcon,
   RefreshCwIcon,
   CheckCircleIcon,
+  ServerIcon,
+  MonitorIcon,
+  CpuIcon,
 } from "lucide-react";
 import { getVersionMajor } from "../utils/versionUtils";
 import { Mod } from "../hooks/types";
@@ -44,6 +47,42 @@ const ModItem: React.FC<ModItemProps> = ({
 
   const showUpdateIndicator = hasUpdate || mod.updateAvailable;
   const latestVersion = mod.latestVersion || mod.version;
+
+  // Funzione per ottenere le informazioni sul tipo di mod
+  const getModTypeInfo = () => {
+    switch (mod.modType) {
+      case "server":
+        return {
+          icon: <ServerIcon size={14} />,
+          label: "Server Mod",
+          color: "#3b82f6", // blue
+          bgColor: "rgba(59, 130, 246, 0.1)",
+        };
+      case "client":
+        return {
+          icon: <MonitorIcon size={14} />,
+          label: "Client Mod",
+          color: "#8b5cf6", // purple
+          bgColor: "rgba(139, 92, 246, 0.1)",
+        };
+      case "both":
+        return {
+          icon: <CpuIcon size={14} />,
+          label: "Server & Client",
+          color: "#06b6d4", // cyan
+          bgColor: "rgba(6, 182, 212, 0.1)",
+        };
+      default:
+        return {
+          icon: <PackageIcon size={14} />,
+          label: "Unknown Type",
+          color: "#6b7280", // gray
+          bgColor: "rgba(107, 114, 128, 0.1)",
+        };
+    }
+  };
+
+  const modTypeInfo = getModTypeInfo();
 
   return (
     <div className="mod-card">
@@ -146,6 +185,16 @@ const ModItem: React.FC<ModItemProps> = ({
               </span>
             </div>
             <div className="mod-status">
+              <span
+                className="mod-type-tag"
+                style={{
+                  color: modTypeInfo.color,
+                  backgroundColor: modTypeInfo.bgColor,
+                }}
+              >
+                {modTypeInfo.icon}
+                {modTypeInfo.label}
+              </span>
               {isInstalled && <span className="installed-tag">Installed</span>}
               {showUpdateIndicator && isInstalled && (
                 <span className="update-tag">Update Available</span>
