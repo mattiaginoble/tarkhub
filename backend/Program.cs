@@ -3,6 +3,8 @@ using ForgeModApi.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.WebHost.UseUrls("http://0.0.0.0:5000");
+
 var enableProxyHeaders = Environment.GetEnvironmentVariable("ENABLE_PROXY_HEADERS")?.ToLower() == "true";
 var publicUrl = Environment.GetEnvironmentVariable("PUBLIC_URL") ?? "https://localhost:6969";
 
@@ -33,15 +35,6 @@ if (enableProxyHeaders)
     app.UseForwardedHeaders();
 }
 
-// Serve static files from "/mod" path
-app.UseStaticFiles(new StaticFileOptions
-{
-    FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(
-        Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "mod")
-    ),
-    RequestPath = "/mod"
-});
-
 app.UseRouting();
 
 // Map API routes
@@ -50,9 +43,6 @@ app.MapModRoutes();
 app.MapSptRoutes();
 app.MapFikaRoutes();
 app.MapServerStatusRoutes();
-
-// SPA fallback
-app.MapFallbackToFile("/mod/{*path:nonfile}", "mod/index.html");
 
 app.MapGet("/health", () => 
 {

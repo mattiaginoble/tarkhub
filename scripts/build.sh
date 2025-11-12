@@ -44,7 +44,7 @@ if [ "$SPT_VERSION" = "latest" ]; then
     echo "Detecting latest SPT version..."
     SPT_DOWNLOAD_URL=$(get_latest_spt_download_url)
     [ -z "$SPT_DOWNLOAD_URL" ] && { echo "ERROR: Could not find SPT download URL"; exit 1; }
-    echo "Using SPT URL: $SPT_DOWNLOAD_URL"
+    echo "SPT download URL: $SPT_DOWNLOAD_URL"
     SPT_VERSION=$(echo "$SPT_DOWNLOAD_URL" | grep -o 'SPT-[0-9]\+\.[0-9]\+\.[0-9]\+' | sed 's/SPT-//' || echo "4.0.4")
 else
     SPT_DOWNLOAD_URL="https://spt-releases.modd.in/SPT-${SPT_VERSION}.7z"
@@ -61,8 +61,7 @@ else
 fi
 
 echo "Resolved versions - SPT: $SPT_VERSION, Fika: $FIKA_VERSION"
-echo "Fika download URL: $FIKA_DOWNLOAD_URL"
-[ -n "${GITHUB_TOKEN:-}" ] && echo "Using GitHub token for API requests"
+[ -n "${GITHUB_TOKEN:-}" ] && echo "GitHub token configured for API requests"
 
 # ========================
 # VERSION FILES SETUP
@@ -77,11 +76,11 @@ mkdir -p "$VERSIONS_DIR"
 # ========================
 
 if [ ! -f "$SPT_DIR/SPT.Server.Linux" ]; then
-    echo "Downloading and installing SPT..."
+    echo "Installing SPT server..."
     mkdir -p /app/spt-server
     curl -f -L "$SPT_DOWNLOAD_URL" -o /app/spt-server/spt.7z
     7zr x /app/spt-server/spt.7z -o/app/spt-server -y
-    echo "SPT extracted successfully"
+    echo "SPT server installed"
 fi
 
 # Configure SPT network
@@ -94,22 +93,19 @@ fi
 # ===================
 
 if [ ! -d "$FIKA_DATA_DIR" ]; then
-    echo "Downloading and installing Fika..."
+    echo "Installing Fika mod..."
     
     if [ -n "$FIKA_DOWNLOAD_URL" ]; then
-        echo "Downloading from GitHub assets: $FIKA_DOWNLOAD_URL"
         curl -f -L "$FIKA_DOWNLOAD_URL" -o /app/spt-server/fika.zip
     else
-        echo "WARNING: No asset found, trying predefined names..."
         FIKA_ARTIFACT="Fika.Server.Release.${FIKA_VERSION}.zip"
-        
         curl -f -L "https://github.com/project-fika/Fika-Server-CSharp/releases/download/${FIKA_VERSION}/${FIKA_ARTIFACT}" -o /app/spt-server/fika.zip || \
         curl -f -L "https://github.com/project-fika/Fika-Server-CSharp/releases/download/${FIKA_VERSION}/Fika.Server.${FIKA_VERSION}.zip" -o /app/spt-server/fika.zip || \
         curl -f -L "https://github.com/project-fika/Fika-Server-CSharp/releases/download/${FIKA_VERSION}/Fika.Server.zip" -o /app/spt-server/fika.zip
     fi
     
     7z x /app/spt-server/fika.zip -o/app/spt-server -y
-    echo "FIKA extracted successfully"
+    echo "Fika mod installed"
 fi
 
 # ========================
@@ -119,7 +115,7 @@ fi
 FIKA_JSONC="$FIKA_DATA_DIR/assets/configs/fika.jsonc"
 
 if [ ! -f "$FIKA_JSONC" ]; then
-    echo "Generating fika.jsonc..."
+    echo "Configuring Fika..."
     chmod +x "$SPT_DIR/SPT.Server.Linux"
     cd "$SPT_DIR"
     
@@ -156,31 +152,42 @@ rm -f /app/spt-server/fika.zip /app/spt-server/spt.7z
 
 echo "Starting services..."
 
-# Start nginx first
+# Start .NET backend first
+echo "Starting .NET backend API..."
+dotnet /app/ForgeModApi.dll --urls="http://0.0.0.0:5000" &
+DOTNET_PID=$!
+
+# Wait for .NET to be ready
+echo "Waiting for .NET backend..."
+for i in {1..30}; do
+    if curl -f http://localhost:5000/health > /dev/null 2>&1; then
+        echo "NET backend ready on port 5000"
+        break
+    fi
+    if [ $i -eq 30 ]; then
+        echo "ERROR: .NET backend failed to start"
+        exit 1
+    fi
+    sleep 1
+done
+
+# Start nginx
 echo "Starting nginx..."
 nginx -g "daemon off;" &
 NGINX_PID=$!
 
-# Start SPT server  
+# Start SPT server
 echo "Starting SPT server..."
 chmod +x "$SPT_DIR/SPT.Server.Linux"
 cd "$SPT_DIR"
 ./SPT.Server.Linux --port 6970 --ip 0.0.0.0 &
 SPT_PID=$!
 
-# Wait longer for SPT to fully initialize
-echo "Waiting for SPT to fully initialize..."
+# Wait for SPT to initialize
+echo "Initializing SPT server..."
 sleep 25
 
-# Now start .NET backend
-echo "Starting .NET backend..."
-dotnet /app/ForgeModApi.dll &
-DOTNET_PID=$!
-
-# Wait for .NET to start
-sleep 10
-
-echo "All services started successfully"
+echo "All services started"
 
 # ===================
 # GRACEFUL SHUTDOWN
@@ -199,13 +206,13 @@ trap cleanup SIGTERM SIGINT
 # HEALTH MONITORING
 # ====================
 
-echo "All services started - monitoring health..."
+echo "Health monitoring started..."
 
 while sleep 30; do
     [ -f /tmp/updating.flag ] && continue
     
     kill -0 $DOTNET_PID $SPT_PID $NGINX_PID 2>/dev/null || {
-        echo "Critical service died - shutting down"
+        echo "Critical service terminated - shutting down"
         cleanup
     }
 done
