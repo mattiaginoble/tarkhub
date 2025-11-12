@@ -37,8 +37,8 @@ ARG SPT_VERSION
 ARG FIKA_VERSION
 
 # Environment variables with defaults
-ENV SPT_VERSION=${SPT_VERSION:-"unknown"} \
-    FIKA_VERSION=${FIKA_VERSION:-"unknown"} \
+ENV SPT_VERSION=${SPT_VERSION:-"latest"} \
+    FIKA_VERSION=${FIKA_VERSION:-"latest"} \
     ASPNETCORE_URLS=http://+:5000
 
 # Install system dependencies with better error handling
