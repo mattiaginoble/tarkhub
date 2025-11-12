@@ -10,8 +10,8 @@ services:
     environment:
       - FORGE_API_KEY=${FORGE_API_KEY}
       - GITHUB_TOKEN=${GITHUB_TOKEN}
-      - SPT_VERSION=${SPT_VERSION}
-      - FIKA_VERSION=${FIKA_VERSION}
+      - SPT_VERSION=${SPT_VERSION:-latest}
+      - FIKA_VERSION=${FIKA_VERSION:-latest}
       - PUBLIC_URL=${PUBLIC_URL}
       - ENABLE_PROXY_HEADERS=${ENABLE_PROXY_HEADERS}
     volumes:

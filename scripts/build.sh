@@ -22,6 +22,26 @@ get_latest_spt_download_url() {
     echo "$response" | jq -r '.body' | grep -o 'https://spt-releases\.modd\.in/SPT-[^ ]*\.7z' | head -1
 }
 
+get_specific_spt_download_url() {
+    local version="$1"
+    local headers=()
+    [ -n "${GITHUB_TOKEN:-}" ] && headers=(-H "Authorization: Bearer $GITHUB_TOKEN")
+    
+    local clean_version="${version#v}"
+    
+    local response
+    response=$(curl -s "${headers[@]}" "https://api.github.com/repos/sp-tarkov/build/releases")
+    
+    local release_tag
+    release_tag=$(echo "$response" | jq -r ".[] | select(.tag_name | test(\"${clean_version}\"; \"i\")) | .tag_name" | head -1)
+    
+    if [ -n "$release_tag" ]; then
+        echo "$response" | jq -r ".[] | select(.tag_name == \"$release_tag\") | .body" | grep -o 'https://spt-releases\.modd\.in/SPT-[^ ]*\.7z' | head -1
+    else
+        echo "https://spt-releases.modd.in/SPT-${clean_version}.7z"
+    fi
+}
+
 get_latest_fika_download_url() {
     local headers=()
     [ -n "${GITHUB_TOKEN:-}" ] && headers=(-H "Authorization: Bearer $GITHUB_TOKEN")
@@ -39,7 +59,7 @@ get_latest_fika_version() {
     curl -s "${headers[@]}" "https://api.github.com/repos/project-fika/Fika-Server-CSharp/releases/latest" | jq -r '.tag_name'
 }
 
-# Resolve versions
+# Resolve SPT version
 if [ "$SPT_VERSION" = "latest" ]; then
     echo "Detecting latest SPT version..."
     SPT_DOWNLOAD_URL=$(get_latest_spt_download_url)
@@ -47,9 +67,16 @@ if [ "$SPT_VERSION" = "latest" ]; then
     echo "SPT download URL: $SPT_DOWNLOAD_URL"
     SPT_VERSION=$(echo "$SPT_DOWNLOAD_URL" | grep -o 'SPT-[0-9]\+\.[0-9]\+\.[0-9]\+' | sed 's/SPT-//' || echo "4.0.4")
 else
-    SPT_DOWNLOAD_URL="https://spt-releases.modd.in/SPT-${SPT_VERSION}.7z"
+    if [[ "$SPT_VERSION" == v* ]]; then
+        echo "Processing version: $SPT_VERSION"
+        SPT_DOWNLOAD_URL=$(get_specific_spt_download_url "$SPT_VERSION")
+        SPT_VERSION=$(echo "$SPT_DOWNLOAD_URL" | grep -o 'SPT-[0-9]\+\.[0-9]\+\.[0-9]\+-[^-]*-[^.]*' | sed 's/SPT-//' || echo "${SPT_VERSION#v}")
+    else
+        SPT_DOWNLOAD_URL="https://spt-releases.modd.in/SPT-${SPT_VERSION}.7z"
+    fi
 fi
 
+# Resolve Fika version (resta invariato)
 if [ "$FIKA_VERSION" = "latest" ]; then
     echo "Detecting latest Fika version..."
     FIKA_VERSION=$(get_latest_fika_version)
@@ -61,6 +88,7 @@ else
 fi
 
 echo "Resolved versions - SPT: $SPT_VERSION, Fika: $FIKA_VERSION"
+echo "SPT download URL: $SPT_DOWNLOAD_URL"
 [ -n "${GITHUB_TOKEN:-}" ] && echo "GitHub token configured for API requests"
 
 # ========================
