@@ -569,10 +569,19 @@ public static class RouteExtensions
                 
                 if (body == null || !body.TryGetValue("downloadUrl", out var downloadUrl) || string.IsNullOrWhiteSpace(downloadUrl))
                 {
-                    return Results.BadRequest(new { error = "Download URL missing" });
+                    return Results.BadRequest(new { error = "Download URL is required" });
                 }
 
-                var success = await modService.DownloadAndUpdateFikaAsync(downloadUrl);
+                // Ottieni la versione automaticamente dal check-update
+                var updateInfo = await modService.CheckFikaUpdateAsync();
+                var version = updateInfo.LatestVersion;
+
+                if (version == "unknown")
+                {
+                    return Results.BadRequest(new { error = "Could not determine Fika version" });
+                }
+
+                var success = await modService.DownloadAndUpdateFikaAsync(downloadUrl, version);
                 
                 if (success)
                 {

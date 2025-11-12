@@ -40,7 +40,7 @@ public interface IModService
     
     // Fika updates
     Task<FikaUpdateInfo> CheckFikaUpdateAsync();
-    Task<bool> DownloadAndUpdateFikaAsync(string downloadUrl);
+    Task<bool> DownloadAndUpdateFikaAsync(string downloadUrl, string version);
     
     // Utilities
     string? ExtractModIdFromUrl(string url);

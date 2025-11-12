@@ -77,7 +77,7 @@ fika_artifact=Fika.Server.Release.$FIKA_VERSION.zip
 
 if [ ! -d "$fika_data_dir" ]; then
   echo "Downloading FIKA v.$FIKA_VERSION..."
-  curl -sL "https://github.com/project-fika/Fika-Server-CSharp/releases/download/v$FIKA_VERSION/$fika_artifact" -o /app/spt-server/fika.zip
+  curl -sL "https://github.com/project-fika/Fika-Server-CSharp/releases/download/$FIKA_VERSION/$fika_artifact" -o /app/spt-server/fika.zip
   7z x /app/spt-server/fika.zip -o/app/spt-server
   echo "FIKA extracted successfully"
 fi
