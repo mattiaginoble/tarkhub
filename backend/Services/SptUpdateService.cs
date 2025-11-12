@@ -61,9 +61,10 @@ public partial class ModService
         
         try
         {
+            _logger.LogInformation("Stopping SPT server...");
             await StopSptServerAsync();
-            await Task.Delay(5000);
 
+            _logger.LogInformation("Starting download...");
             await DownloadFileAsync(url, tempFile);
             await ExtractArchiveAsync(tempFile, extractDir);
             
@@ -245,19 +246,31 @@ public partial class ModService
         try
         {
             var processes = System.Diagnostics.Process.GetProcessesByName("SPT.Server.Linux");
+
             foreach (var process in processes)
             {
                 try
                 {
                     process.Kill();
-                    process.WaitForExit(5000);
                 }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning(ex, "Error terminating SPT process");
-                }
+                catch {}
             }
-            await Task.Delay(2000);
+
+            var maxWaitTime = TimeSpan.FromSeconds(3);
+            var startTime = DateTime.UtcNow;
+            
+            while (DateTime.UtcNow - startTime < maxWaitTime && 
+                System.Diagnostics.Process.GetProcessesByName("SPT.Server.Linux").Length > 0)
+            {
+                await Task.Delay(100);
+            }
+
+            foreach (var process in System.Diagnostics.Process.GetProcessesByName("SPT.Server.Linux"))
+            {
+                try { process.Kill(); } catch { }
+            }
+            
+            await Task.Delay(500);
         }
         catch (Exception ex)
         {
@@ -286,7 +299,7 @@ public partial class ModService
             };
             
             process.Start();
-            await Task.Delay(5000);
+            await Task.Delay(1000);
         }
         catch (Exception ex)
         {
@@ -303,7 +316,7 @@ public partial class ModService
                 return false;
 
             var process = System.Diagnostics.Process.Start("chmod", $"+x \"{sptPath}\"");
-            process?.WaitForExit(5000);
+            process?.WaitForExit(1000);
             return true;
         }
         catch (Exception ex)
