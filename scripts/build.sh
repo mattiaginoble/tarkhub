@@ -48,11 +48,26 @@ echo "Extracted versions: SPT=$SPT_MAIN_VERSION (from $SPT_VERSION), FIKA=$FIKA_
 # CREATE VERSION FILES
 # ========================
 
-echo "Creating version files..."
+echo "Checking version files..."
 mkdir -p $versions_dir
-echo "$SPT_MAIN_VERSION" > $versions_dir/spt_version.txt
-echo "$FIKA_MAIN_VERSION" > $versions_dir/fika_version.txt
-echo "Version files created: SPT=$SPT_MAIN_VERSION, FIKA=$FIKA_MAIN_VERSION"
+
+# Create SPT version file only if it doesn't exist
+if [ ! -f "$versions_dir/spt_version.txt" ]; then
+    echo "$SPT_MAIN_VERSION" > $versions_dir/spt_version.txt
+    echo "SPT version file created: $SPT_MAIN_VERSION"
+else
+    current_spt_version=$(cat $versions_dir/spt_version.txt)
+    echo "SPT version file already exists: $current_spt_version"
+fi
+
+# Create Fika version file only if it doesn't exist  
+if [ ! -f "$versions_dir/fika_version.txt" ]; then
+    echo "$FIKA_MAIN_VERSION" > $versions_dir/fika_version.txt
+    echo "Fika version file created: $FIKA_MAIN_VERSION"
+else
+    current_fika_version=$(cat $versions_dir/fika_version.txt)
+    echo "Fika version file already exists: $current_fika_version"
+fi
 
 # ========================
 # SPT SERVER INSTALLATION
