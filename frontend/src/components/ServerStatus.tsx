@@ -17,7 +17,7 @@ interface ServerStatusProps {
   onUpdateInstalledStatus?: () => Promise<void>;
 }
 
-interface ServerStatusInfo {
+interface ServerStatus {
   sptVersion: string;
   isRunning: boolean;
   players: string;
@@ -75,7 +75,7 @@ const ServerStatus: React.FC<ServerStatusProps> = ({
   onUpdateInstalledStatus,
 }) => {
   const { showModal } = useModal();
-  const [serverInfo, setServerInfo] = useState<ServerStatusInfo>({
+  const [serverInfo, setServerInfo] = useState<ServerStatus>({
     sptVersion: getCachedSptVersion(),
     players: getCachedPlayers(),
     uptime: "0s",
@@ -107,7 +107,7 @@ const ServerStatus: React.FC<ServerStatusProps> = ({
     try {
       const response = await fetch("/api/server/status");
       if (response.ok) {
-        const data: ServerStatusInfo = await response.json();
+        const data: ServerStatus = await response.json();
 
         if (data.sptVersion && data.sptVersion !== "unknown") {
           saveSptVersionToCache(data.sptVersion);

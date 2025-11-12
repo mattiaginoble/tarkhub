@@ -23,8 +23,8 @@ public interface IModService
     string GetCurrentFikaVersion();
     
     // Download and installation
-    Task<ModDownloadResult> DownloadAndExtractModAsync(string listName, int modId, bool forceDownload = false);
-    Task<List<ModDownloadResult>> DownloadAllModsAsync(string listName, bool forceDownload = false);
+    Task<DownloadResult> DownloadAndExtractModAsync(string listName, int modId, bool forceDownload = false);
+    Task<List<DownloadResult>> DownloadAllModsAsync(string listName, bool forceDownload = false);
     bool IsModInstalled(int modId, string modName);
     bool RemoveModFromInstallation(int modId, string modName);
     bool CompleteModInstallation(string modName, string tempExtractPath, bool installAsServerMod);
@@ -48,7 +48,7 @@ public interface IModService
     bool ValidateSptInstallation();
 }
 
-public class ModDownloadResult
+public class DownloadResult
 {
     public bool Success { get; set; }
     public string Message { get; set; } = string.Empty;

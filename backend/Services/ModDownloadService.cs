@@ -10,7 +10,7 @@ public partial class ModService
 {
     #region Mod Download and Installation - Simplified Logic
     
-    public async Task<ModDownloadResult> DownloadAndExtractModAsync(string listName, int modId, bool forceDownload = false)
+    public async Task<DownloadResult> DownloadAndExtractModAsync(string listName, int modId, bool forceDownload = false)
     {
         string? tempDir = null;
         try
@@ -19,7 +19,7 @@ public partial class ModService
             var mod = list.Mods.FirstOrDefault(m => m.Id == modId);
             
             if (mod == null)
-                return new ModDownloadResult { Success = false, Message = "Mod not found in list" };
+                return new DownloadResult { Success = false, Message = "Mod not found in list" };
 
             _logger.LogInformation("Starting mod download: {ModName} (ID: {ModId})", mod.Name, mod.Id);
 
@@ -32,7 +32,7 @@ public partial class ModService
             if (!forceDownload && IsModInstalled(mod.Id, mod.Name))
             {
                 _logger.LogInformation("Mod {ModName} already installed, skipping download", mod.Name);
-                return new ModDownloadResult { 
+                return new DownloadResult { 
                     Success = true, 
                     Message = $"Mod '{mod.Name}' already installed", 
                     ModName = mod.Name 
@@ -44,7 +44,7 @@ public partial class ModService
             if (string.IsNullOrEmpty(downloadUrl))
             {
                 _logger.LogWarning("Download URL not available for {ModName}", mod.Name);
-                return new ModDownloadResult { Success = false, Message = "Download URL not available for this mod" };
+                return new DownloadResult { Success = false, Message = "Download URL not available for this mod" };
             }
 
             tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
@@ -63,7 +63,7 @@ public partial class ModService
                 if (!response.IsSuccessStatusCode)
                 {
                     _logger.LogError("Download error: {StatusCode}", response.StatusCode);
-                    return new ModDownloadResult { 
+                    return new DownloadResult { 
                         Success = false, 
                         Message = $"File download error: {response.StatusCode}" 
                     };
@@ -101,7 +101,7 @@ public partial class ModService
                 CopyDirectoryContents(extractDir, _sptServerDir);
                 _logger.LogInformation("Mod '{ModName}' installed with standard structure", mod.Name);
                 
-                return new ModDownloadResult { 
+                return new DownloadResult { 
                     Success = true, 
                     Message = $"Mod '{mod.Name}' downloaded and installed successfully!",
                     ModName = mod.Name
@@ -116,7 +116,7 @@ public partial class ModService
                 
                 _logger.LogWarning("Mod '{ModName}' has non-standard structure, pending user choice", mod.Name);
 
-                return new ModDownloadResult { 
+                return new DownloadResult { 
                     Success = true,
                     Message = "MOD_STRUCTURE_CHOICE_NEEDED",
                     ModName = mod.Name,
@@ -128,7 +128,7 @@ public partial class ModService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error downloading mod");
-            return new ModDownloadResult { Success = false, Message = $"Error: {ex.Message}" };
+            return new DownloadResult { Success = false, Message = $"Error: {ex.Message}" };
         }
         finally
         {
@@ -373,16 +373,16 @@ public partial class ModService
         }
     }
 
-    public async Task<List<ModDownloadResult>> DownloadAllModsAsync(string listName, bool forceDownload = false)
+    public async Task<List<DownloadResult>> DownloadAllModsAsync(string listName, bool forceDownload = false)
     {
         var list = LoadList(listName);
-        var results = new List<ModDownloadResult>();
+        var results = new List<DownloadResult>();
 
         foreach (var mod in list.Mods)
         {
             if (!forceDownload && IsModInstalled(mod.Id, mod.Name))
             {
-                results.Add(new ModDownloadResult { 
+                results.Add(new DownloadResult { 
                     Success = true, 
                     Message = $"Mod '{mod.Name}' already installed", 
                     ModName = mod.Name 

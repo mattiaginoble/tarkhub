@@ -7,7 +7,7 @@ public partial class ModService
 {
     #region Server Status
 
-    public async Task<ServerStatusInfo> GetServerStatusAsync()
+    public async Task<ServerStatus> GetServerStatusAsync()
     {
         try
         {
@@ -16,7 +16,7 @@ public partial class ModService
             var uptime = GetContainerUptime();
             var players = await GetConnectedPlayersSimpleAsync();
 
-            return new ServerStatusInfo
+            return new ServerStatus
             {
                 SptVersion = sptVersion,
                 IsRunning = isRunning,
@@ -28,7 +28,7 @@ public partial class ModService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error getting server status");
-            return new ServerStatusInfo
+            return new ServerStatus
             {
                 SptVersion = "unknown",
                 IsRunning = false,

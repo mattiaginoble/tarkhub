@@ -43,7 +43,7 @@ export interface ApiResponse<T = any> {
   message?: string;
 }
 
-export interface ModDownloadResult {
+export interface DownloadResult {
   modId: number;
   success: boolean;
   error?: string;

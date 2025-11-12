@@ -1,12 +1,7 @@
 import { useCallback } from "react";
 import { useModal } from "../components/ModalContext";
 import { useModUpdates } from "./useModUpdates";
-import {
-  Mod,
-  ApiResponse,
-  ModDownloadResult,
-  ModOperationResult,
-} from "./types";
+import { Mod, ApiResponse, DownloadResult, ModOperationResult } from "./types";
 
 export function useModOperations(
   currentList: string,
@@ -127,7 +122,7 @@ export function useModOperations(
         message: `Download and install all ${currentMods.length} mods?`,
         confirmText: "Download All",
         onConfirm: async () => {
-          const result = await apiCall<ModDownloadResult[]>(
+          const result = await apiCall<DownloadResult[]>(
             `/api/mod_list/${encodeURIComponent(currentList)}/download_all`,
             { method: "POST" }
           );
