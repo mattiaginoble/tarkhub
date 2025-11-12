@@ -3,11 +3,35 @@ using ForgeModApi.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
+var enableProxyHeaders = Environment.GetEnvironmentVariable("ENABLE_PROXY_HEADERS")?.ToLower() == "true";
+var publicUrl = Environment.GetEnvironmentVariable("PUBLIC_URL") ?? "https://localhost:6969";
+
+if (enableProxyHeaders)
+{
+    builder.Services.Configure<ForwardedHeadersOptions>(options =>
+    {
+        options.ForwardedHeaders = Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedFor | 
+                                  Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedProto |
+                                  Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedHost;
+    });
+}
+
 // Register services
 builder.Services.AddHttpClient<ModService>();
 builder.Services.AddSingleton<ModService>();
 
+builder.Services.AddSingleton(new AppConfig 
+{ 
+    BaseUrl = publicUrl,
+    IsBehindProxy = enableProxyHeaders
+});
+
 var app = builder.Build();
+
+if (enableProxyHeaders)
+{
+    app.UseForwardedHeaders();
+}
 
 // Serve static files from "/mod" path
 app.UseStaticFiles(new StaticFileOptions
